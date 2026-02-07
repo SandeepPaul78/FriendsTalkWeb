@@ -1,0 +1,49 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg-start: #f4f8ff;
+    --bg-mid: #edf5ff;
+    --bg-end: #eafcf7;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Manrope", sans-serif;
+    color: #0f172a;
+    background:
+      radial-gradient(80rem 50rem at -10% -20%, #dbeafe 0%, transparent 60%),
+      radial-gradient(70rem 40rem at 110% 120%, #d1fae5 0%, transparent 60%),
+      linear-gradient(135deg, var(--bg-start), var(--bg-mid) 48%, var(--bg-end));
+    background-attachment: fixed;
+  }
+
+  .font-display {
+    font-family: "Sora", sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .bg-grid-soft {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+}

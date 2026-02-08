@@ -54,6 +54,7 @@ function VideoCall({
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [videoFacing, setVideoFacing] = useState("user");
   const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
+  const [isLocalFull, setIsLocalFull] = useState(false);
 
   const stopRingtone = useCallback(() => {
     if (ringtoneIntervalRef.current) {
@@ -183,6 +184,7 @@ function VideoCall({
       setCallPeer(null);
       setStatusText("Idle");
       setVideoFacing("user");
+      setIsLocalFull(false);
       resetDuration();
       releaseMedia();
       stopRingtone();
@@ -640,7 +642,28 @@ function VideoCall({
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="h-full w-full bg-black object-cover"
+              onClick={
+                isLocalFull ? () => setIsLocalFull(false) : undefined
+              }
+              className={`bg-black object-cover ${
+                isLocalFull
+                  ? "absolute bottom-24 right-4 z-10 h-32 w-24 cursor-pointer rounded-2xl border border-white/20 shadow-lg"
+                  : "absolute inset-0 z-0 h-full w-full"
+              }`}
+            />
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              onClick={
+                isLocalFull ? undefined : () => setIsLocalFull(true)
+              }
+              className={`bg-black object-cover ${
+                isLocalFull
+                  ? "absolute inset-0 z-0 h-full w-full"
+                  : "absolute bottom-24 right-4 z-10 h-32 w-24 cursor-pointer rounded-2xl border border-white/20 shadow-lg"
+              }`}
             />
           </div>
 
@@ -696,15 +719,6 @@ function VideoCall({
             </div>
           </div>
 
-          <div className="pointer-events-none absolute bottom-24 right-4 z-10 h-32 w-24 overflow-hidden rounded-2xl border border-white/20 bg-black/70 shadow-lg">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-            />
-          </div>
         </div>
       )}
 

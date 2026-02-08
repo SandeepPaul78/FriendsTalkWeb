@@ -48,3 +48,35 @@ export const apiRequest = async (path, { method = "GET", token, body } = {}) => 
 
   return data;
 };
+
+export const uploadRequest = async (path, { token, file, fields } = {}) => {
+  const formData = new FormData();
+  if (file) {
+    formData.append("file", file);
+  }
+  if (fields) {
+    Object.entries(fields).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+  }
+
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error || data?.message || "Upload failed";
+    throw new Error(message);
+  }
+
+  return data;
+};

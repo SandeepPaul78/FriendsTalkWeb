@@ -2,10 +2,13 @@ require("dotenv").config();
 
 const crypto = require("crypto");
 const cors = require("cors");
+const { v2: cloudinary } = require("cloudinary");
 const express = require("express");
 const http = require("http");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const multer = require("multer");
+const { Readable } = require("stream");
 const { Server } = require("socket.io");
 
 const PORT = Number(process.env.PORT || 5000);
@@ -17,6 +20,17 @@ const OTP_DEBUG = process.env.OTP_DEBUG !== "false";
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const OTP_FROM_EMAIL = process.env.OTP_FROM_EMAIL || "";
 const OTP_FROM_NAME = process.env.OTP_FROM_NAME || "FriendsTalk";
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 15);
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL });
+} else if (process.env.CLOUDINARY_CLOUD_NAME) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 const normalizeMongoUri = (uri) => {
   if (!uri || !uri.includes("@")) return uri;
@@ -61,6 +75,21 @@ if (!MONGODB_URI) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+});
+
+const uploadBufferToCloudinary = (buffer, options) =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error) return reject(error);
+      return resolve(result);
+    });
+
+    Readable.from(buffer).pipe(uploadStream);
+  });
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -124,7 +153,20 @@ const messageSchema = new mongoose.Schema(
   {
     sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     receiver: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    text: { type: String, required: true, trim: true },
+    text: { type: String, trim: true },
+    type: {
+      type: String,
+      enum: ["text", "image", "video", "audio", "file"],
+      default: "text",
+      index: true,
+    },
+    mediaUrl: { type: String, trim: true },
+    mediaPublicId: { type: String, trim: true },
+    mediaMime: { type: String, trim: true },
+    mediaName: { type: String, trim: true },
+    mediaSize: { type: Number },
+    deliveredAt: { type: Date, default: null },
+    readAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -598,6 +640,80 @@ app.delete("/contacts/:contactId", requireAuth, async (req, res) => {
   }
 });
 
+app.post(
+  "/messages/:contactId/upload",
+  requireAuth,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const { contactId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(contactId)) {
+        return res.status(400).json({ error: "Invalid contact id" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "File is required" });
+      }
+
+      if (!cloudinary.config().cloud_name) {
+        return res.status(500).json({ error: "Cloudinary config missing" });
+      }
+
+      const mime = req.file.mimetype || "";
+      const isImage = mime.startsWith("image/");
+      const isVideo = mime.startsWith("video/");
+      const isAudio = mime.startsWith("audio/");
+      const type = isImage ? "image" : isVideo ? "video" : isAudio ? "audio" : "file";
+
+      const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+        folder: "friendstalk",
+        resource_type: "auto",
+      });
+
+      const messageDoc = await Message.create({
+        sender: req.userId,
+        receiver: contactId,
+        text: "",
+        type,
+        mediaUrl: uploadResult.secure_url,
+        mediaPublicId: uploadResult.public_id,
+        mediaMime: mime,
+        mediaName: req.file.originalname,
+        mediaSize: req.file.size,
+      });
+
+      const payload = {
+        id: messageDoc._id.toString(),
+        from: req.userId,
+        fromPhone: req.user?.phoneNumber,
+        to: contactId,
+        message: "",
+        type,
+        mediaUrl: uploadResult.secure_url,
+        mediaMime: mime,
+        mediaName: req.file.originalname,
+        mediaSize: req.file.size,
+        timestamp: messageDoc.createdAt,
+        deliveredAt: messageDoc.deliveredAt || null,
+        readAt: messageDoc.readAt || null,
+      };
+
+      const delivered = relayToUser(contactId, "private-message", payload);
+      if (delivered) {
+        messageDoc.deliveredAt = new Date();
+        await messageDoc.save();
+        payload.deliveredAt = messageDoc.deliveredAt;
+      }
+
+      return res.json({ message: payload });
+    } catch (error) {
+      console.error("upload message failed", error);
+      return res.status(500).json({ error: "Failed to upload file" });
+    }
+  }
+);
+
 app.get("/messages/:contactId", requireAuth, async (req, res) => {
   try {
     const { contactId } = req.params;
@@ -621,7 +737,14 @@ app.get("/messages/:contactId", requireAuth, async (req, res) => {
         id: message._id.toString(),
         from: message.sender.toString(),
         to: message.receiver.toString(),
-        message: message.text,
+        message: message.text || "",
+        type: message.type || "text",
+        mediaUrl: message.mediaUrl || null,
+        mediaMime: message.mediaMime || null,
+        mediaName: message.mediaName || null,
+        mediaSize: message.mediaSize || null,
+        deliveredAt: message.deliveredAt || null,
+        readAt: message.readAt || null,
         timestamp: message.createdAt,
       })),
     });
@@ -675,7 +798,7 @@ io.on("connection", (socket) => {
   userBySocket.set(socket.id, userId);
   emitOnlineUsers();
 
-  socket.on("private-message", async ({ to, message }) => {
+  socket.on("private-message", async ({ to, message, clientId }) => {
     try {
       if (!to || !mongoose.Types.ObjectId.isValid(to)) return;
       const cleanMessage = String(message || "").trim();
@@ -685,7 +808,23 @@ io.on("connection", (socket) => {
         sender: userId,
         receiver: to,
         text: cleanMessage,
+        type: "text",
       });
+
+      const delivered = relayToUser(to, "private-message", {
+        id: messageDoc._id.toString(),
+        from: userId,
+        fromPhone: phoneNumber,
+        to,
+        message: cleanMessage,
+        type: "text",
+        timestamp: messageDoc.createdAt,
+      });
+
+      if (delivered) {
+        messageDoc.deliveredAt = new Date();
+        await messageDoc.save();
+      }
 
       const payload = {
         id: messageDoc._id.toString(),
@@ -693,10 +832,18 @@ io.on("connection", (socket) => {
         fromPhone: phoneNumber,
         to,
         message: cleanMessage,
+        type: "text",
         timestamp: messageDoc.createdAt,
+        deliveredAt: messageDoc.deliveredAt || null,
+        readAt: messageDoc.readAt || null,
       };
 
-      relayToUser(to, "private-message", payload);
+      socket.emit("message-status", {
+        clientId: clientId || null,
+        messageId: messageDoc._id.toString(),
+        status: delivered ? "delivered" : "sent",
+        deliveredAt: messageDoc.deliveredAt || null,
+      });
     } catch (error) {
       console.error("socket private-message failed", error);
     }
@@ -716,6 +863,45 @@ io.on("connection", (socket) => {
       from: userId,
       fromPhone: phoneNumber,
     });
+  });
+
+  socket.on("mark-read", async ({ contactId }) => {
+    try {
+      if (!contactId || !mongoose.Types.ObjectId.isValid(contactId)) return;
+
+      const unreadMessages = await Message.find({
+        sender: contactId,
+        receiver: userId,
+        readAt: null,
+      })
+        .select("_id")
+        .lean();
+
+      if (unreadMessages.length === 0) return;
+
+      const messageIds = unreadMessages.map((msg) => msg._id);
+      const now = new Date();
+
+      await Message.updateMany(
+        { _id: { $in: messageIds } },
+        [
+          {
+            $set: {
+              readAt: now,
+              deliveredAt: { $ifNull: ["$deliveredAt", now] },
+            },
+          },
+        ]
+      );
+
+      relayToUser(contactId, "message-read", {
+        from: userId,
+        messageIds: messageIds.map((id) => id.toString()),
+        readAt: now,
+      });
+    } catch (error) {
+      console.error("mark-read failed", error);
+    }
   });
 
   socket.on("call-user", ({ to, offer, callType, callId }) => {

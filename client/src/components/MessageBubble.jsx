@@ -7,7 +7,22 @@ const formatTime = (timestamp) => {
   });
 };
 
+const formatBytes = (bytes) => {
+  if (!bytes || Number.isNaN(bytes)) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+};
+
 function MessageBubble({ message, isOwn }) {
+  const type = message.type || "text";
+  const hasMedia = Boolean(message.mediaUrl);
+
   return (
     <div className={`mb-2 flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div
@@ -17,14 +32,63 @@ function MessageBubble({ message, isOwn }) {
             : "rounded-bl-md bg-white text-[#111b21]"
         }`}
       >
-        <p className="text-[13px] leading-relaxed">{message.message}</p>
-        <p
-          className={`mt-1 text-[10px] ${
+        {type === "text" && (
+          <p className="text-[13px] leading-relaxed">{message.message}</p>
+        )}
+
+        {type === "image" && hasMedia && (
+          <img
+            src={message.mediaUrl}
+            alt={message.mediaName || "Image"}
+            className="mt-1 max-h-64 w-full rounded-xl object-cover"
+          />
+        )}
+
+        {type === "video" && hasMedia && (
+          <video
+            src={message.mediaUrl}
+            controls
+            className="mt-1 max-h-64 w-full rounded-xl bg-black object-cover"
+          />
+        )}
+
+        {type === "audio" && hasMedia && (
+          <audio src={message.mediaUrl} controls className="mt-2 w-full" />
+        )}
+
+        {type === "file" && hasMedia && (
+          <a
+            href={message.mediaUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 block rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            {message.mediaName || "Document"}
+            {message.mediaSize ? ` · ${formatBytes(message.mediaSize)}` : ""}
+          </a>
+        )}
+
+        {message.message && type !== "text" && (
+          <p className="mt-2 text-[13px] leading-relaxed">{message.message}</p>
+        )}
+        <div
+          className={`mt-1 flex items-center gap-1 text-[10px] ${
             isOwn ? "text-[#4f6f5d]" : "text-slate-500"
           }`}
         >
-          {formatTime(message.timestamp)}
-        </p>
+          <span>{formatTime(message.timestamp)}</span>
+          {isOwn && message.status && (
+            <span
+              className={`text-[11px] ${
+                message.status === "read" ? "text-sky-500" : ""
+              }`}
+              aria-label={message.status}
+            >
+              {message.status === "sent" && "✓"}
+              {(message.status === "delivered" || message.status === "read") && "✓✓"}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

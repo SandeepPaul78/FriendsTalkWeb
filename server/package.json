@@ -13,10 +13,12 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "cloudinary": "^2.6.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.1",
     "mongoose": "^9.1.6",
     "socket.io": "^4.8.3"
   },

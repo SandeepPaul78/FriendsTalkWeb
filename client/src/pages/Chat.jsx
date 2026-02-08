@@ -97,12 +97,26 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           token: authToken,
         });
 
-        setMessages(response.messages || []);
+        const normalizeStatus = (msg) => {
+          if (msg.from === currentUser.id) {
+            if (msg.readAt) return "read";
+            if (msg.deliveredAt) return "delivered";
+            return "sent";
+          }
+          return null;
+        };
+
+        const nextMessages = (response.messages || []).map((msg) => ({
+          ...msg,
+          status: normalizeStatus(msg),
+        }));
+
+        setMessages(nextMessages);
       } catch (error) {
         console.error("loadMessages failed", error);
       }
     },
-    [authToken]
+    [authToken, currentUser.id]
   );
 
   useEffect(() => {
@@ -113,6 +127,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     setTypingContactId(null);
     clearCountsForContact(selectedContactId);
     loadMessages(selectedContactId);
+    if (selectedContactId) {
+      socket.emit("mark-read", { contactId: selectedContactId });
+    }
   }, [clearCountsForContact, loadMessages, selectedContactId]);
 
   useEffect(() => {
@@ -124,11 +141,19 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         from: data.from,
         to: data.to,
         message: data.message,
+        type: data.type || "text",
+        mediaUrl: data.mediaUrl || null,
+        mediaMime: data.mediaMime || null,
+        mediaName: data.mediaName || null,
+        mediaSize: data.mediaSize || null,
+        deliveredAt: data.deliveredAt || null,
+        readAt: data.readAt || null,
         timestamp: data.timestamp || Date.now(),
       };
 
       if (incomingMessage.from === selectedContactIdRef.current) {
         setMessages((prev) => [...prev, incomingMessage]);
+        socket.emit("mark-read", { contactId: incomingMessage.from });
         return;
       }
 
@@ -174,16 +199,52 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       onLogout();
     };
 
+    const handleMessageStatus = ({ clientId, messageId, status, deliveredAt }) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (clientId && msg.clientId && msg.clientId === clientId) {
+            return {
+              ...msg,
+              id: messageId || msg.id,
+              status: status || msg.status,
+              deliveredAt: deliveredAt || msg.deliveredAt,
+            };
+          }
+          return msg;
+        })
+      );
+    };
+
+    const handleMessageRead = ({ messageIds, readAt }) => {
+      if (!messageIds?.length) return;
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.from === currentUser.id && messageIds.includes(msg.id)) {
+            return {
+              ...msg,
+              status: "read",
+              readAt: readAt || msg.readAt,
+            };
+          }
+          return msg;
+        })
+      );
+    };
+
     socket.on("private-message", handlePrivateMessage);
     socket.on("typing", handleTyping);
     socket.on("stop-typing", handleStopTyping);
     socket.on("session-replaced", handleSessionReplaced);
+    socket.on("message-status", handleMessageStatus);
+    socket.on("message-read", handleMessageRead);
 
     return () => {
       socket.off("private-message", handlePrivateMessage);
       socket.off("typing", handleTyping);
       socket.off("stop-typing", handleStopTyping);
       socket.off("session-replaced", handleSessionReplaced);
+      socket.off("message-status", handleMessageStatus);
+      socket.off("message-read", handleMessageRead);
     };
   }, [currentUser.id, loadContacts, onLogout]);
 
@@ -191,11 +252,16 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     const cleanMessage = draftMessage.trim();
     if (!cleanMessage || !selectedContactId) return;
 
+    const clientId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const outgoing = {
-      id: `local-${Date.now()}`,
+      id: clientId,
+      clientId,
       from: currentUser.id,
       to: selectedContactId,
       message: cleanMessage,
+      type: "text",
+      status: "sent",
       timestamp: Date.now(),
     };
 
@@ -204,6 +270,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     socket.emit("private-message", {
       to: selectedContactId,
       message: cleanMessage,
+      clientId,
     });
 
     socket.emit("stop-typing", { to: selectedContactId });
@@ -211,6 +278,22 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     setDraftMessage("");
     setTypingContactId(null);
   };
+
+  const handleAddMessage = useCallback(
+    (message) => {
+      if (!message) return;
+      const status =
+        message.from === currentUser.id
+          ? message.readAt
+            ? "read"
+            : message.deliveredAt
+            ? "delivered"
+            : "sent"
+          : null;
+      setMessages((prev) => [...prev, { ...message, status }]);
+    },
+    [currentUser.id]
+  );
 
   const handleDraftChange = (value) => {
     setDraftMessage(value);
@@ -229,6 +312,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     clearCountsForContact(contactId);
     setTypingContactId(null);
     setIsChatOpen(true);
+    if (contactId) {
+      socket.emit("mark-read", { contactId });
+    }
   };
 
   const handleBackToList = () => {
@@ -366,6 +452,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
             </div>
           ) : (
             <ChatWindow
+              authToken={authToken}
               currentUser={currentUser}
               selectedContact={selectedContact}
               messages={messages}
@@ -373,6 +460,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
               draftMessage={draftMessage}
               onDraftChange={handleDraftChange}
               onSendMessage={sendMessage}
+              onAddMessage={handleAddMessage}
               callControls={callControls}
               onBack={handleBackToList}
             />

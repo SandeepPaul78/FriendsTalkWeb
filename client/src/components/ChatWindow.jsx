@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import MessageBubble from "./MessageBubble";
+import { uploadRequest } from "../services/api";
 
 function ChatWindow({
+  authToken,
   currentUser,
   selectedContact,
   messages,
@@ -9,12 +11,28 @@ function ChatWindow({
   draftMessage,
   onDraftChange,
   onSendMessage,
+  onAddMessage,
   callControls,
   onBack,
 }) {
   const hasSelection = Boolean(selectedContact);
   const [wallpaper, setWallpaper] = useState(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const docInputRef = useRef(null);
+  const audioInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const cameraVideoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const cameraCanvasRef = useRef(null);
+
+  const EMOJIS = ["😀", "😂", "😍", "😎", "😭", "👍", "🙏", "❤️", "🔥", "🎉"];
 
   useEffect(() => {
     if (!selectedContact?.id) {
@@ -40,6 +58,91 @@ function ChatWindow({
     event.target.value = "";
   };
 
+  const handleUpload = async (file) => {
+    if (!file || !selectedContact?.id) return;
+    setUploadError("");
+    setIsUploading(true);
+
+    try {
+      const response = await uploadRequest(`/messages/${selectedContact.id}/upload`, {
+        token: authToken,
+        file,
+      });
+      if (response?.message) {
+        onAddMessage?.(response.message);
+      }
+    } catch (error) {
+      setUploadError(error.message || "Upload failed");
+    } finally {
+      setIsUploading(false);
+      setShowAttach(false);
+    }
+  };
+
+  const handleEmojiPick = (emoji) => {
+    onDraftChange(`${draftMessage}${emoji}`);
+  };
+
+  const stopCameraStream = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+  };
+
+  const openCamera = async () => {
+    setCameraError("");
+    setShowCamera(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("Camera open failed:", error);
+      setCameraError("Camera access denied");
+    }
+  };
+
+  const closeCamera = () => {
+    stopCameraStream();
+    setShowCamera(false);
+  };
+
+  const capturePhoto = async () => {
+    if (!cameraVideoRef.current || !cameraCanvasRef.current) return;
+
+    const video = cameraVideoRef.current;
+    const canvas = cameraCanvasRef.current;
+    canvas.width = video.videoWidth || 720;
+    canvas.height = video.videoHeight || 1280;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.9)
+    );
+    if (!blob) return;
+
+    const file = new File([blob], `camera_${Date.now()}.jpg`, {
+      type: "image/jpeg",
+    });
+
+    await handleUpload(file);
+    closeCamera();
+  };
+
+  useEffect(() => {
+    return () => stopCameraStream();
+  }, []);
+
   const clearWallpaper = () => {
     if (!selectedContact?.id) return;
     localStorage.removeItem(`ft_wallpaper_${selectedContact.id}`);
@@ -47,7 +150,7 @@ function ChatWindow({
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[#0b141a]">
+    <section className="flex min-h-0 flex-1 flex-col overflow-x-hidden bg-[#0b141a]">
       <header className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -112,7 +215,7 @@ function ChatWindow({
       ) : (
         <>
           <div
-            className="chat-wallpaper flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-4 py-4 sm:px-6"
+            className="chat-wallpaper flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6"
             style={wallpaper ? { backgroundImage: `url(${wallpaper})` } : undefined}
           >
             {messages.length === 0 && (
@@ -136,11 +239,84 @@ function ChatWindow({
               <p className="mb-2 text-xs text-slate-600">{typingContactLabel} is typing...</p>
             )}
 
-            <div className="flex items-end gap-2">
+            {uploadError && (
+              <p className="mb-2 text-xs text-rose-600">{uploadError}</p>
+            )}
+
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmoji((prev) => !prev);
+                    setShowAttach(false);
+                  }}
+                  disabled={!selectedContact}
+                  className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+                >
+                  🙂
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttach((prev) => !prev);
+                    setShowEmoji(false);
+                  }}
+                  disabled={!selectedContact}
+                  className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+                >
+                  +
+                </button>
+
+                {showEmoji && (
+                  <div className="absolute bottom-14 left-0 z-20 w-52 rounded-2xl border border-[#cfd4d7] bg-white p-2 shadow-lg">
+                    <div className="grid grid-cols-5 gap-1">
+                      {EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => handleEmojiPick(emoji)}
+                          className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {showAttach && (
+                  <div className="absolute bottom-14 left-0 z-20 w-56 rounded-2xl border border-[#cfd4d7] bg-white p-2 text-sm shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-100"
+                    >
+                      Photo / Video
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => docInputRef.current?.click()}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-100"
+                    >
+                      Document (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => audioInputRef.current?.click()}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-100"
+                    >
+                      Audio
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <textarea
                 rows={1}
                 disabled={!selectedContact}
-                className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-[#cfd4d7] bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[#25d366] disabled:cursor-not-allowed disabled:bg-slate-200"
+                className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-[#cfd4d7] bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[#25d366] disabled:cursor-not-allowed disabled:bg-slate-200"
                 placeholder={selectedContact ? "Type a message..." : "Select a contact first"}
                 value={draftMessage}
                 onChange={(e) => onDraftChange(e.target.value)}
@@ -153,6 +329,14 @@ function ChatWindow({
               />
               <button
                 type="button"
+                onClick={openCamera}
+                disabled={!selectedContact}
+                className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+              >
+                📷
+              </button>
+              <button
+                type="button"
                 disabled={!selectedContact || !draftMessage.trim()}
                 onClick={onSendMessage}
                 className="h-11 rounded-2xl bg-[#25d366] px-4 text-sm font-semibold text-[#073e2a] transition hover:bg-[#1fc15c] disabled:cursor-not-allowed disabled:opacity-45"
@@ -160,6 +344,9 @@ function ChatWindow({
                 Send
               </button>
             </div>
+            {isUploading && (
+              <p className="mt-2 text-xs text-slate-500">Uploading...</p>
+            )}
           </div>
         </>
       )}
@@ -171,6 +358,92 @@ function ChatWindow({
         className="hidden"
         onChange={handleWallpaperPick}
       />
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleUpload(file);
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleUpload(file);
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleUpload(file);
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleUpload(file);
+          event.target.value = "";
+        }}
+      />
+
+      {showCamera && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="relative flex-1">
+            <video
+              ref={cameraVideoRef}
+              autoPlay
+              playsInline
+              className="h-full w-full object-cover"
+            />
+            <canvas ref={cameraCanvasRef} className="hidden" />
+
+            <div className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs text-white">
+              Camera
+            </div>
+          </div>
+
+          {cameraError && (
+            <div className="bg-rose-600 px-4 py-2 text-center text-sm text-white">
+              {cameraError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between bg-black px-6 py-4">
+            <button
+              type="button"
+              onClick={closeCamera}
+              className="rounded-full border border-white/40 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={capturePhoto}
+              className="h-14 w-14 rounded-full border-4 border-white bg-white/10"
+            />
+            <div className="w-20" />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

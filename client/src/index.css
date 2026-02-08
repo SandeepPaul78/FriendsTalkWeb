@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Rubik:wght@500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -7,9 +7,12 @@
 @layer base {
   :root {
     color-scheme: light;
-    --bg-start: #f4f8ff;
-    --bg-mid: #edf5ff;
-    --bg-end: #eafcf7;
+    --wa-dark: #0b141a;
+    --wa-panel: #111b21;
+    --wa-header: #005c4b;
+    --wa-accent: #25d366;
+    --wa-bubble: #d9fdd3;
+    --wa-chat: #efeae2;
   }
 
   * {
@@ -24,26 +27,26 @@
 
   body {
     margin: 0;
-    font-family: "Manrope", sans-serif;
-    color: #0f172a;
-    background:
-      radial-gradient(80rem 50rem at -10% -20%, #dbeafe 0%, transparent 60%),
-      radial-gradient(70rem 40rem at 110% 120%, #d1fae5 0%, transparent 60%),
-      linear-gradient(135deg, var(--bg-start), var(--bg-mid) 48%, var(--bg-end));
+    font-family: "Noto Sans", sans-serif;
+    color: #111b21;
+    background: var(--wa-dark);
     background-attachment: fixed;
   }
 
   .font-display {
-    font-family: "Sora", sans-serif;
-    letter-spacing: -0.01em;
+    font-family: "Rubik", sans-serif;
+    letter-spacing: -0.015em;
   }
 }
 
 @layer utilities {
-  .bg-grid-soft {
+  .chat-wallpaper {
+    background-color: var(--wa-chat);
     background-image:
-      linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
-    background-size: 34px 34px;
+      radial-gradient(circle at 25% 30%, rgba(255, 255, 255, 0.55) 0%, transparent 45%),
+      radial-gradient(circle at 80% 15%, rgba(255, 255, 255, 0.4) 0%, transparent 48%),
+      radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.35) 0%, transparent 42%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.02));
+    background-size: cover;
   }
 }

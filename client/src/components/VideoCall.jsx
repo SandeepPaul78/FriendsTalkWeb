@@ -52,6 +52,8 @@ function VideoCall({
   const [callPeer, setCallPeer] = useState(null);
   const [statusText, setStatusText] = useState("Idle");
   const [durationSeconds, setDurationSeconds] = useState(0);
+  const [videoFacing, setVideoFacing] = useState("user");
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
 
   const stopRingtone = useCallback(() => {
     if (ringtoneIntervalRef.current) {
@@ -180,6 +182,7 @@ function VideoCall({
       setCallActive(false);
       setCallPeer(null);
       setStatusText("Idle");
+      setVideoFacing("user");
       resetDuration();
       releaseMedia();
       stopRingtone();
@@ -323,10 +326,52 @@ function VideoCall({
 
   const getMediaStream = async () => {
     return navigator.mediaDevices.getUserMedia({
-      video: true,
+      video: { facingMode: videoFacing },
       audio: true,
     });
   };
+
+  const switchCamera = useCallback(async () => {
+    if (!localStreamRef.current || isSwitchingCamera) return;
+    const nextFacing = videoFacing === "user" ? "environment" : "user";
+    setIsSwitchingCamera(true);
+
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: nextFacing },
+        audio: false,
+      });
+
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) return;
+
+      const oldTrack = localStreamRef.current.getVideoTracks()[0];
+      if (oldTrack) {
+        localStreamRef.current.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+
+      localStreamRef.current.addTrack(newTrack);
+
+      const sender = peerRef.current
+        ?.getSenders()
+        .find((trackSender) => trackSender.track?.kind === "video");
+      if (sender) {
+        await sender.replaceTrack(newTrack);
+      }
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+        safePlay(localVideoRef.current);
+      }
+
+      setVideoFacing(nextFacing);
+    } catch (error) {
+      console.error("Switch camera failed:", error);
+    } finally {
+      setIsSwitchingCamera(false);
+    }
+  }, [isSwitchingCamera, videoFacing]);
 
   const startCall = async () => {
     if (!selectedUser || activeCallRef.current) return;
@@ -573,91 +618,98 @@ function VideoCall({
   }, [attachMediaElements, callActive]);
 
   const durationLabel = formatDuration(durationSeconds);
+  const showInlineButton = !callActive && !incomingCall;
+  const showOverlay = callActive || incomingCall;
 
   return (
-    <div className="flex w-full flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {!callActive && !incomingCall && (
-          <button
-            onClick={startCall}
-            disabled={!selectedUser}
-            className="rounded-xl bg-indigo-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Video Call
-          </button>
-        )}
+    <>
+      {showInlineButton && (
+        <button
+          onClick={startCall}
+          disabled={!selectedUser}
+          className="rounded-full border border-white/30 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Video
+        </button>
+      )}
 
-        {incomingCall && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-300/60 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
-            <span>{incomingCall.fromPhone || incomingCall.from} is calling (video)</span>
-            <button
-              onClick={acceptCall}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
-            >
-              Accept
-            </button>
-            <button
-              onClick={rejectCall}
-              className="rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700"
-            >
-              Reject
-            </button>
+      {showOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="absolute inset-0">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="h-full w-full bg-black object-cover"
+            />
           </div>
-        )}
 
-        {callActive && (
-          <div className="flex items-center gap-2 rounded-xl border border-slate-300/70 bg-white/80 px-3 py-2 text-xs text-slate-700">
-            <span>
-              {statusText}
-              {callPeer ? ` with ${callPeer}` : ""}
-              {durationSeconds > 0 ? ` · ${durationLabel}` : ""}
-            </span>
-            <button
-              onClick={() => cleanupCall(true)}
-              className="rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700"
-            >
-              End
-            </button>
+          <div className="pointer-events-none relative z-10 flex items-start justify-between px-5 py-4 text-white">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">
+                Video Call
+              </p>
+              <h3 className="mt-1 text-lg font-semibold">
+                {incomingCall?.fromPhone || callPeer || selectedUserLabel || selectedUser || "Unknown"}
+              </h3>
+              <p className="text-xs text-white/70">
+                {incomingCall ? "Incoming call" : statusText}
+                {durationSeconds > 0 ? ` · ${durationLabel}` : ""}
+              </p>
+            </div>
           </div>
-        )}
 
-        {!callActive && !incomingCall && statusText !== "Idle" && (
-          <span className="text-xs text-slate-500">{statusText}</span>
-        )}
-      </div>
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 flex justify-center pb-6">
+            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-black/50 px-4 py-2 backdrop-blur">
+              {incomingCall ? (
+                <>
+                  <button
+                    onClick={acceptCall}
+                    className="h-12 rounded-full bg-[#25d366] px-5 text-sm font-semibold text-[#073e2a] hover:bg-[#1fc15c]"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={rejectCall}
+                    className="h-12 rounded-full bg-rose-600 px-5 text-sm font-semibold text-white hover:bg-rose-700"
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={switchCamera}
+                    disabled={isSwitchingCamera}
+                    className="h-10 rounded-full border border-white/30 px-4 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-60"
+                  >
+                    Flip
+                  </button>
+                  <button
+                    onClick={() => cleanupCall(true)}
+                    className="h-12 rounded-full bg-rose-600 px-6 text-sm font-semibold text-white hover:bg-rose-700"
+                  >
+                    End
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
 
-      {callActive && (
-        <div className="grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-300/80 bg-slate-900 p-2">
-            <p className="mb-1 text-xs font-medium text-slate-200">You</p>
+          <div className="pointer-events-none absolute bottom-24 right-4 z-10 h-32 w-24 overflow-hidden rounded-2xl border border-white/20 bg-black/70 shadow-lg">
             <video
               ref={localVideoRef}
               autoPlay
               muted
               playsInline
-              className="h-40 w-full rounded-lg bg-black object-cover"
-            />
-          </div>
-
-          <div className="rounded-xl border border-slate-300/80 bg-slate-900 p-2">
-            <p className="mb-1 text-xs font-medium text-slate-200">{callPeer || "Remote"}</p>
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="h-40 w-full rounded-lg bg-black object-cover"
+              className="h-full w-full object-cover"
             />
           </div>
         </div>
       )}
 
-      <audio
-        ref={remoteAudioRef}
-        autoPlay
-        controls
-        className={callActive ? "h-8 w-full max-w-xs" : "hidden"}
-      />
-    </div>
+      <audio ref={remoteAudioRef} autoPlay className="hidden" />
+    </>
   );
 }
 

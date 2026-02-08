@@ -10,6 +10,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedContactId, setSelectedContactId] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [draftMessage, setDraftMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -227,6 +228,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     setSelectedContactId(contactId);
     clearCountsForContact(contactId);
     setTypingContactId(null);
+    setIsChatOpen(true);
+  };
+
+  const handleBackToList = () => {
+    setIsChatOpen(false);
+    setSelectedContactId(null);
   };
 
   const handleAddContact = useCallback(
@@ -250,6 +257,31 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         return false;
       } finally {
         setAddingContact(false);
+      }
+    },
+    [authToken, clearCountsForContact, loadContacts]
+  );
+
+  const handleDeleteContact = useCallback(
+    async (contactId) => {
+      if (!contactId) return;
+      setAddContactError("");
+
+      try {
+        await apiRequest(`/contacts/${contactId}?deleteMessages=true`, {
+          method: "DELETE",
+          token: authToken,
+        });
+
+        if (selectedContactIdRef.current === contactId) {
+          setMessages([]);
+          setDraftMessage("");
+        }
+
+        await loadContacts();
+        clearCountsForContact(contactId);
+      } catch (error) {
+        setAddContactError(error.message);
       }
     },
     [authToken, clearCountsForContact, loadContacts]
@@ -284,7 +316,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const typingContactLabel = typingContact?.displayName || typingContact?.phoneNumber || null;
 
   const callControls = (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {callType !== "video" && (
         <AudioCall
           selectedUser={selectedContactId}
@@ -308,39 +340,44 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   );
 
   return (
-    <div className="bg-grid-soft min-h-screen px-3 py-4 sm:px-6 sm:py-8">
-      <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/70 shadow-[0_24px_65px_-30px_rgba(15,23,42,0.55)] backdrop-blur-xl md:h-[calc(100vh-4rem)] md:flex-row">
+    <div className="min-h-[100dvh] bg-[#0b141a] sm:px-5 sm:py-6">
+      <div className="mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-[#111b21] sm:h-[calc(100dvh-3rem)] sm:rounded-2xl sm:border sm:border-[#1f2c34] sm:shadow-[0_30px_60px_-35px_rgba(0,0,0,0.7)] md:flex-row">
         <Sidebar
           currentUser={currentUser}
           contacts={contacts}
           onlineUserIds={onlineUserIds}
           selectedContactId={selectedContactId}
           onSelectContact={handleSelectContact}
+          isChatOpen={isChatOpen}
           isCallLocked={Boolean(callType)}
           unreadCounts={unreadCounts}
           missedCallCounts={missedCallCounts}
           onAddContact={handleAddContact}
+          onDeleteContact={handleDeleteContact}
           addingContact={addingContact}
           addContactError={addContactError}
           onLogout={onLogout}
         />
 
-        {contactsLoading ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-            Loading chats...
-          </div>
-        ) : (
-          <ChatWindow
-            currentUser={currentUser}
-            selectedContact={selectedContact}
-            messages={messages}
-            typingContactLabel={typingContactLabel}
-            draftMessage={draftMessage}
-            onDraftChange={handleDraftChange}
-            onSendMessage={sendMessage}
-            callControls={callControls}
-          />
-        )}
+        <div className={`flex min-h-0 flex-1 ${isChatOpen ? "flex" : "hidden"} md:flex`}>
+          {contactsLoading ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-white/70">
+              Loading chats...
+            </div>
+          ) : (
+            <ChatWindow
+              currentUser={currentUser}
+              selectedContact={selectedContact}
+              messages={messages}
+              typingContactLabel={typingContactLabel}
+              draftMessage={draftMessage}
+              onDraftChange={handleDraftChange}
+              onSendMessage={sendMessage}
+              callControls={callControls}
+              onBack={handleBackToList}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

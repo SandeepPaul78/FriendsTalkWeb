@@ -522,64 +522,67 @@ function AudioCall({ selectedUser, selectedUserLabel, onStart, onEnd, onMissedCa
   }, [cleanupCall, stopDurationTimer, stopRingtone]);
 
   const durationLabel = formatDuration(durationSeconds);
+  const showInlineButton = !callActive && !incomingCall;
+  const showOverlay = callActive || incomingCall;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {!callActive && !incomingCall && (
+    <>
+      {showInlineButton && (
         <button
           onClick={startCall}
           disabled={!selectedUser}
-          className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border border-white/30 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Audio Call
+          Audio
         </button>
       )}
 
-      {incomingCall && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          <span>{incomingCall.fromPhone || incomingCall.from} is calling (audio)</span>
-          <button
-            onClick={acceptCall}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
-          >
-            Accept
-          </button>
-          <button
-            onClick={rejectCall}
-            className="rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700"
-          >
-            Reject
-          </button>
-        </div>
-      )}
+      {showOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b141a]/95 px-6">
+          <div className="w-full max-w-sm rounded-3xl border border-[#1f2c34] bg-[#111b21] p-6 text-center text-white shadow-2xl">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
+              Audio Call
+            </p>
+            <h3 className="mt-2 text-lg font-semibold">
+              {incomingCall?.fromPhone || selectedUserLabel || selectedUser || "Unknown"}
+            </h3>
+            <p className="mt-1 text-sm text-white/70">
+              {incomingCall ? "Incoming call" : statusText}
+              {durationSeconds > 0 ? ` · ${durationLabel}` : ""}
+            </p>
 
-      {callActive && (
-        <div className="flex items-center gap-2 rounded-xl border border-slate-300/70 bg-white/80 px-3 py-2 text-xs text-slate-700">
-          <span>
-            {statusText}
-            {durationSeconds > 0 ? ` · ${durationLabel}` : ""}
-          </span>
-          <button
-            onClick={() => cleanupCall(true)}
-            className="rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700"
-          >
-            End
-          </button>
+            <div className="mt-6 flex items-center justify-center gap-4">
+              {incomingCall ? (
+                <>
+                  <button
+                    onClick={acceptCall}
+                    className="h-12 rounded-full bg-[#25d366] px-5 text-sm font-semibold text-[#073e2a] hover:bg-[#1fc15c]"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={rejectCall}
+                    className="h-12 rounded-full bg-rose-600 px-5 text-sm font-semibold text-white hover:bg-rose-700"
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => cleanupCall(true)}
+                  className="h-12 rounded-full bg-rose-600 px-6 text-sm font-semibold text-white hover:bg-rose-700"
+                >
+                  End Call
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      )}
-
-      {!callActive && !incomingCall && statusText !== "Idle" && (
-        <span className="text-xs text-slate-500">{statusText}</span>
       )}
 
       <audio ref={localAudioRef} autoPlay muted className="hidden" />
-      <audio
-        ref={remoteAudioRef}
-        autoPlay
-        controls
-        className={callActive ? "h-8" : "hidden"}
-      />
-    </div>
+      <audio ref={remoteAudioRef} autoPlay className="hidden" />
+    </>
   );
 }
 

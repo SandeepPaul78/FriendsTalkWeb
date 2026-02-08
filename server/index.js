@@ -571,6 +571,33 @@ app.patch("/contacts/:contactId", requireAuth, async (req, res) => {
   }
 });
 
+app.delete("/contacts/:contactId", requireAuth, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const deleteMessages = req.query?.deleteMessages === "true";
+
+    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+      return res.status(400).json({ error: "Invalid contact id" });
+    }
+
+    await Contact.deleteMany({ owner: req.userId, contact: contactId });
+
+    if (deleteMessages) {
+      await Message.deleteMany({
+        $or: [
+          { sender: req.userId, receiver: contactId },
+          { sender: contactId, receiver: req.userId },
+        ],
+      });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("delete contact failed", error);
+    return res.status(500).json({ error: "Failed to delete contact" });
+  }
+});
+
 app.get("/messages/:contactId", requireAuth, async (req, res) => {
   try {
     const { contactId } = req.params;

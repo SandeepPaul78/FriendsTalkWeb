@@ -469,6 +469,7 @@ function ChatWindow({
               onClick={capturePhoto}
               className="h-14 w-14 rounded-full border-4 border-white bg-white/10"
             />
+            
             <div className="w-20" />
           </div>
         </div>

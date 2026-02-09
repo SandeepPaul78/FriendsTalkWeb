@@ -3,7 +3,7 @@ import AudioCall from "../components/AudioCall";
 import ChatWindow from "../components/ChatWindow";
 import Sidebar from "../components/Sidebar";
 import VideoCall from "../components/VideoCall";
-import { apiRequest } from "../services/api";
+import { apiRequest, uploadRequest } from "../services/api";
 import { socket } from "../services/socket";
 
 function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
@@ -11,6 +11,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedContactId, setSelectedContactId] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("chats"); // chats | status | calls
 
   const [draftMessage, setDraftMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -19,6 +20,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
 
   const [unreadCounts, setUnreadCounts] = useState({});
   const [missedCallCounts, setMissedCallCounts] = useState({});
+  const [statuses, setStatuses] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusUploading, setStatusUploading] = useState(false);
+  const [callHistory, setCallHistory] = useState([]);
+  const [callHistoryLoading, setCallHistoryLoading] = useState(false);
+  const [autoStartCall, setAutoStartCall] = useState(null); // { type, contactId, token }
 
   const [addContactError, setAddContactError] = useState("");
   const [addingContact, setAddingContact] = useState(false);
@@ -26,6 +33,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const typingTimeoutRef = useRef(null);
   const selectedContactIdRef = useRef(selectedContactId);
   const contactsRef = useRef(contacts);
+  const statusFileRef = useRef(null);
 
   useEffect(() => {
     selectedContactIdRef.current = selectedContactId;
@@ -322,6 +330,67 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     setSelectedContactId(null);
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== "chats") {
+      setIsChatOpen(false);
+    }
+  };
+
+  const loadStatuses = useCallback(async () => {
+    setStatusLoading(true);
+    try {
+      const response = await apiRequest("/status", { token: authToken });
+      setStatuses(response.statuses || []);
+    } catch (error) {
+      console.error("loadStatuses failed", error);
+    } finally {
+      setStatusLoading(false);
+    }
+  }, [authToken]);
+
+  const loadCallHistory = useCallback(async () => {
+    setCallHistoryLoading(true);
+    try {
+      const response = await apiRequest("/calls", { token: authToken });
+      setCallHistory(response.calls || []);
+    } catch (error) {
+      console.error("loadCallHistory failed", error);
+    } finally {
+      setCallHistoryLoading(false);
+    }
+  }, [authToken]);
+
+  const handleStatusUpload = async (file) => {
+    if (!file) return;
+    setStatusUploading(true);
+    try {
+      const text = window.prompt("Status text (optional)") || "";
+      await uploadRequest("/status/upload", {
+        token: authToken,
+        file,
+        fields: { text },
+      });
+      await loadStatuses();
+    } catch (error) {
+      console.error("status upload failed", error);
+    } finally {
+      setStatusUploading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "status") {
+      loadStatuses();
+    }
+  }, [activeTab, loadStatuses]);
+
+  useEffect(() => {
+    if (activeTab === "calls") {
+      loadCallHistory();
+    }
+  }, [activeTab, loadCallHistory]);
+
   const handleAddContact = useCallback(
     async ({ phoneNumber, name }) => {
       setAddContactError("");
@@ -398,6 +467,14 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     setCallType((current) => (current === "video" ? null : current));
   }, []);
 
+  const triggerAutoCall = (contactId, type) => {
+    if (!contactId) return;
+    setActiveTab("chats");
+    setSelectedContactId(contactId);
+    setIsChatOpen(true);
+    setAutoStartCall({ type, contactId, token: Date.now() });
+  };
+
   const typingContact = contacts.find((contact) => contact.id === typingContactId);
   const typingContactLabel = typingContact?.displayName || typingContact?.phoneNumber || null;
 
@@ -410,6 +487,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           onStart={handleAudioCallStart}
           onEnd={handleAudioCallEnd}
           onMissedCall={handleMissedCall}
+          autoStartToken={
+            autoStartCall?.type === "audio" && autoStartCall?.contactId === selectedContactId
+              ? autoStartCall.token
+              : null
+          }
         />
       )}
 
@@ -420,6 +502,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           onStart={handleVideoCallStart}
           onEnd={handleVideoCallEnd}
           onMissedCall={handleMissedCall}
+          autoStartToken={
+            autoStartCall?.type === "video" && autoStartCall?.contactId === selectedContactId
+              ? autoStartCall.token
+              : null
+          }
         />
       )}
     </div>
@@ -435,6 +522,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           selectedContactId={selectedContactId}
           onSelectContact={handleSelectContact}
           isChatOpen={isChatOpen}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
           isCallLocked={Boolean(callType)}
           unreadCounts={unreadCounts}
           missedCallCounts={missedCallCounts}
@@ -445,26 +534,208 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           onLogout={onLogout}
         />
 
-        <div className={`flex min-h-0 flex-1 ${isChatOpen ? "flex" : "hidden"} md:flex`}>
-          {contactsLoading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-white/70">
-              Loading chats...
+        <div className="flex min-h-0 flex-1">
+          {activeTab === "chats" && (
+            <div className={`flex min-h-0 flex-1 ${isChatOpen ? "flex" : "hidden"} md:flex`}>
+              {contactsLoading ? (
+                <div className="flex flex-1 items-center justify-center text-sm text-white/70">
+                  Loading chats...
+                </div>
+              ) : (
+                <ChatWindow
+                  authToken={authToken}
+                  currentUser={currentUser}
+                  selectedContact={selectedContact}
+                  messages={messages}
+                  typingContactLabel={typingContactLabel}
+                  draftMessage={draftMessage}
+                  onDraftChange={handleDraftChange}
+                  onSendMessage={sendMessage}
+                  onAddMessage={handleAddMessage}
+                  onSaveContact={handleAddContact}
+                  callControls={callControls}
+                  onBack={handleBackToList}
+                />
+              )}
             </div>
-          ) : (
-            <ChatWindow
-              authToken={authToken}
-              currentUser={currentUser}
-              selectedContact={selectedContact}
-              messages={messages}
-              typingContactLabel={typingContactLabel}
-              draftMessage={draftMessage}
-              onDraftChange={handleDraftChange}
-              onSendMessage={sendMessage}
-              onAddMessage={handleAddMessage}
-              callControls={callControls}
-              onBack={handleBackToList}
-            />
           )}
+
+          {activeTab === "status" && (
+            <div className="flex min-h-0 flex-1 flex-col bg-[#0b141a] pb-16 text-white md:pb-0">
+              <div className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
+                <h3 className="font-display text-lg font-semibold">Status</h3>
+                <p className="text-xs text-white/70">Share a photo or video update</p>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">My Status</p>
+                      <p className="text-xs text-white/60">
+                        Add a photo or video update
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => statusFileRef.current?.click()}
+                      disabled={statusUploading}
+                      className="rounded-full bg-[#25d366] px-3 py-1 text-xs font-semibold text-[#073e2a] hover:bg-[#1fc15c] disabled:opacity-60"
+                    >
+                      {statusUploading ? "Uploading..." : "Add"}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadStatuses}
+                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10"
+                >
+                  Refresh
+                </button>
+
+                {statusLoading && (
+                  <div className="text-sm text-white/60">Loading status...</div>
+                )}
+
+                {!statusLoading && statuses.length === 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-white/60">
+                    No status yet.
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {statuses.map((status) => (
+                    <div
+                      key={status.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white"
+                    >
+                      <div className="flex items-center justify-between text-xs text-white/60">
+                        <span>{status.ownerPhone}</span>
+                        <span>{new Date(status.createdAt).toLocaleTimeString()}</span>
+                      </div>
+                      {status.mediaType === "image" && (
+                        <img
+                          src={status.mediaUrl}
+                          alt="Status"
+                          className="mt-2 max-h-80 w-full rounded-xl object-cover"
+                        />
+                      )}
+                      {status.mediaType === "video" && (
+                        <video
+                          src={status.mediaUrl}
+                          controls
+                          className="mt-2 max-h-80 w-full rounded-xl bg-black object-cover"
+                        />
+                      )}
+                      {status.text && (
+                        <p className="mt-2 text-sm text-white/90">{status.text}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <input
+                ref={statusFileRef}
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) handleStatusUpload(file);
+                  event.target.value = "";
+                }}
+              />
+            </div>
+          )}
+
+          {activeTab === "calls" && (
+            <div className="flex min-h-0 flex-1 flex-col bg-[#0b141a] pb-16 text-white md:pb-0">
+              <div className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
+                <h3 className="font-display text-lg font-semibold">Calls</h3>
+                <p className="text-xs text-white/70">Audio & video call history</p>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
+                <button
+                  type="button"
+                  onClick={loadCallHistory}
+                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10"
+                >
+                  Refresh
+                </button>
+
+                {callHistoryLoading && (
+                  <div className="text-sm text-white/60">Loading calls...</div>
+                )}
+
+                {!callHistoryLoading && callHistory.length === 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-white/60">
+                    No calls yet.
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {callHistory.map((call) => (
+                    <div
+                      key={call.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{call.peerPhone}</p>
+                        <p className="text-xs text-white/60">
+                          {call.callType} · {call.direction} · {call.status}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          {new Date(call.startedAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => triggerAutoCall(call.peerId, "audio")}
+                          className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 hover:bg-white/10"
+                        >
+                          Audio
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => triggerAutoCall(call.peerId, "video")}
+                          className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 hover:bg-white/10"
+                        >
+                          Video
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#1f2c34] bg-[#111b21] md:hidden">
+        <div className="mx-auto flex max-w-6xl items-center justify-around px-4 py-2 text-xs text-white/70">
+          {[
+            { key: "chats", label: "Chats" },
+            { key: "status", label: "Status" },
+            { key: "calls", label: "Calls" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleTabChange(tab.key)}
+              className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                activeTab === tab.key
+                  ? "bg-[#25d366] text-[#073e2a]"
+                  : "text-white/70"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

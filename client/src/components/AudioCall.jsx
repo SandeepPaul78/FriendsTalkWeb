@@ -26,7 +26,14 @@ const safePlay = (mediaEl) => {
   }
 };
 
-function AudioCall({ selectedUser, selectedUserLabel, onStart, onEnd, onMissedCall }) {
+function AudioCall({
+  selectedUser,
+  selectedUserLabel,
+  onStart,
+  onEnd,
+  onMissedCall,
+  autoStartToken,
+}) {
   const localAudioRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
@@ -39,6 +46,7 @@ function AudioCall({ selectedUser, selectedUserLabel, onStart, onEnd, onMissedCa
   const durationTimerRef = useRef(null);
   const ringtoneContextRef = useRef(null);
   const ringtoneIntervalRef = useRef(null);
+  const lastAutoStartRef = useRef(null);
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
@@ -520,6 +528,15 @@ function AudioCall({ selectedUser, selectedUserLabel, onStart, onEnd, onMissedCa
       stopRingtone();
     };
   }, [cleanupCall, stopDurationTimer, stopRingtone]);
+
+  useEffect(() => {
+    if (!autoStartToken) return;
+    if (!selectedUser) return;
+    if (callActive || incomingCall) return;
+    if (lastAutoStartRef.current === autoStartToken) return;
+    lastAutoStartRef.current = autoStartToken;
+    startCall();
+  }, [autoStartToken, callActive, incomingCall, selectedUser, startCall]);
 
   const durationLabel = formatDuration(durationSeconds);
   const showInlineButton = !callActive && !incomingCall;

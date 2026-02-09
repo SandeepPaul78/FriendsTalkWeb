@@ -32,6 +32,7 @@ function VideoCall({
   onStart,
   onEnd,
   onMissedCall,
+  autoStartToken,
 }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -46,6 +47,7 @@ function VideoCall({
   const durationTimerRef = useRef(null);
   const ringtoneContextRef = useRef(null);
   const ringtoneIntervalRef = useRef(null);
+  const lastAutoStartRef = useRef(null);
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [callActive, setCallActive] = useState(false);
@@ -618,6 +620,15 @@ function VideoCall({
     if (!callActive) return;
     attachMediaElements();
   }, [attachMediaElements, callActive]);
+
+  useEffect(() => {
+    if (!autoStartToken) return;
+    if (!selectedUser) return;
+    if (callActive || incomingCall) return;
+    if (lastAutoStartRef.current === autoStartToken) return;
+    lastAutoStartRef.current = autoStartToken;
+    startCall();
+  }, [autoStartToken, callActive, incomingCall, selectedUser, startCall]);
 
   const durationLabel = formatDuration(durationSeconds);
   const showInlineButton = !callActive && !incomingCall;

@@ -12,6 +12,7 @@ function ChatWindow({
   onDraftChange,
   onSendMessage,
   onAddMessage,
+  onSaveContact,
   callControls,
   onBack,
 }) {
@@ -22,6 +23,7 @@ function ChatWindow({
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const [saveContactError, setSaveContactError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -149,8 +151,21 @@ function ChatWindow({
     setWallpaper(null);
   };
 
+  const handleSaveContact = async () => {
+    if (!selectedContact?.phoneNumber || !onSaveContact) return;
+    setSaveContactError("");
+    const name = window.prompt("Contact name (optional)") || "";
+    const ok = await onSaveContact({
+      phoneNumber: selectedContact.phoneNumber,
+      name,
+    });
+    if (!ok) {
+      setSaveContactError("Failed to save contact");
+    }
+  };
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-x-hidden bg-[#0b141a]">
+    <section className="flex min-h-0 flex-1 flex-col overflow-x-hidden bg-[#0b141a] pb-16 md:pb-0">
       <header className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -176,6 +191,16 @@ function ChatWindow({
 
           <div className="flex items-center gap-2">
             {callControls}
+
+            {selectedContact && !selectedContact.isSaved && (
+              <button
+                type="button"
+                onClick={handleSaveContact}
+                className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/10"
+              >
+                Add
+              </button>
+            )}
 
             {selectedContact && (
               <>
@@ -241,6 +266,10 @@ function ChatWindow({
 
             {uploadError && (
               <p className="mb-2 text-xs text-rose-600">{uploadError}</p>
+            )}
+
+            {saveContactError && (
+              <p className="mb-2 text-xs text-rose-600">{saveContactError}</p>
             )}
 
             <div className="flex flex-wrap items-end gap-2">

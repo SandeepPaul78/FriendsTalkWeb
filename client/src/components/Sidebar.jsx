@@ -7,6 +7,8 @@ function Sidebar({
   selectedContactId,
   onSelectContact,
   isChatOpen,
+  activeTab,
+  onTabChange,
   isCallLocked,
   unreadCounts,
   missedCallCounts,
@@ -112,6 +114,27 @@ function Sidebar({
             Contact switch disabled while call is active
           </p>
         )}
+
+        <div className="mt-3 hidden items-center gap-2 md:flex">
+          {[
+            { key: "chats", label: "Chats" },
+            { key: "status", label: "Status" },
+            { key: "calls", label: "Calls" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => onTabChange?.(tab.key)}
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                activeTab === tab.key
+                  ? "bg-[#25d366] text-[#073e2a]"
+                  : "bg-white/10 text-white/80 hover:bg-white/20"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
@@ -121,7 +144,8 @@ function Sidebar({
           </div>
         )}
 
-        {contacts.map((contact) => {
+        {activeTab === "chats" &&
+          contacts.map((contact) => {
           const isSelected = selectedContactId === contact.id;
           const isDisabled = Boolean(isCallLocked && !isSelected);
           const unreadCount = unreadCounts?.[contact.id] || 0;

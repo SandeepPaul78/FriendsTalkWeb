@@ -24,6 +24,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusUploading, setStatusUploading] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [activeStatus, setActiveStatus] = useState(null);
   const [callHistory, setCallHistory] = useState([]);
   const [callHistoryLoading, setCallHistoryLoading] = useState(false);
   const [autoStartCall, setAutoStartCall] = useState(null); // { type, contactId, token }
@@ -350,6 +351,27 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   }, [authToken]);
 
+  const statusSeenKey = useCallback(
+    (statusId) => `ft_status_seen_${currentUser?.id || "me"}_${statusId}`,
+    [currentUser?.id]
+  );
+
+  const isStatusSeen = useCallback(
+    (statusId) => {
+      if (!statusId) return false;
+      return localStorage.getItem(statusSeenKey(statusId)) === "1";
+    },
+    [statusSeenKey]
+  );
+
+  const markStatusSeen = useCallback(
+    (statusId) => {
+      if (!statusId) return;
+      localStorage.setItem(statusSeenKey(statusId), "1");
+    },
+    [statusSeenKey]
+  );
+
   const loadCallHistory = useCallback(async () => {
     setCallHistoryLoading(true);
     try {
@@ -613,36 +635,62 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   </div>
                 )}
 
-                <div className="grid gap-3">
-                  {statuses.map((status) => (
-                    <div
+                {(() => {
+                  const list = statuses.filter((s) => s.ownerId !== currentUser.id);
+                  const unseen = list.filter((s) => !isStatusSeen(s.id));
+                  const seen = list.filter((s) => isStatusSeen(s.id));
+
+                  const renderRow = (status) => (
+                    <button
                       key={status.id}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white"
+                      type="button"
+                      onClick={() => {
+                        setActiveStatus(status);
+                        markStatusSeen(status.id);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left"
                     >
-                      <div className="flex items-center justify-between text-xs text-white/60">
-                        <span>{status.ownerPhone}</span>
-                        <span>{new Date(status.createdAt).toLocaleTimeString()}</span>
+                      <div className="relative">
+                        <div
+                          className={`h-12 w-12 rounded-full border-2 ${
+                            isStatusSeen(status.id) ? "border-white/20" : "border-[#25d366]"
+                          }`}
+                        />
+                        {status.mediaType === "image" && (
+                          <img
+                            src={status.mediaUrl}
+                            alt="Status"
+                            className="absolute inset-1 h-10 w-10 rounded-full object-cover"
+                          />
+                        )}
+                        {status.mediaType === "video" && (
+                          <div className="absolute inset-1 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-xs">
+                            ▶
+                          </div>
+                        )}
                       </div>
-                      {status.mediaType === "image" && (
-                        <img
-                          src={status.mediaUrl}
-                          alt="Status"
-                          className="mt-2 max-h-80 w-full rounded-xl object-cover"
-                        />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{status.ownerPhone}</p>
+                        <p className="text-xs text-white/60">
+                          {new Date(status.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </button>
+                  );
+
+                  return (
+                    <div className="grid gap-3">
+                      {unseen.length > 0 && (
+                        <div className="text-xs font-semibold text-white/60">Recent</div>
                       )}
-                      {status.mediaType === "video" && (
-                        <video
-                          src={status.mediaUrl}
-                          controls
-                          className="mt-2 max-h-80 w-full rounded-xl bg-black object-cover"
-                        />
+                      {unseen.map(renderRow)}
+                      {seen.length > 0 && (
+                        <div className="text-xs font-semibold text-white/40">Viewed</div>
                       )}
-                      {status.text && (
-                        <p className="mt-2 text-sm text-white/90">{status.text}</p>
-                      )}
+                      {seen.map(renderRow)}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
 
               <input
@@ -747,6 +795,46 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {activeStatus && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="flex items-center justify-between px-4 py-3 text-white">
+            <div>
+              <p className="text-sm font-semibold">{activeStatus.ownerPhone}</p>
+              <p className="text-xs text-white/60">
+                {new Date(activeStatus.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveStatus(null)}
+              className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white/90"
+            >
+              Close
+            </button>
+          </div>
+          <div className="flex flex-1 items-center justify-center p-4">
+            {activeStatus.mediaType === "image" && (
+              <img
+                src={activeStatus.mediaUrl}
+                alt="Status"
+                className="max-h-full w-full rounded-2xl object-contain"
+              />
+            )}
+            {activeStatus.mediaType === "video" && (
+              <video
+                src={activeStatus.mediaUrl}
+                controls
+                autoPlay
+                className="max-h-full w-full rounded-2xl bg-black object-contain"
+              />
+            )}
+          </div>
+          {activeStatus.text && (
+            <div className="px-4 pb-4 text-sm text-white/90">{activeStatus.text}</div>
+          )}
         </div>
       )}
     </div>

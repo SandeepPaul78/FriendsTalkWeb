@@ -27,6 +27,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [activeStatus, setActiveStatus] = useState(null);
   const [statusReply, setStatusReply] = useState("");
   const [statusReplyError, setStatusReplyError] = useState("");
+  const [statusMenuOpenId, setStatusMenuOpenId] = useState(null);
+  const [statusDeletingId, setStatusDeletingId] = useState(null);
   const statusTimerRef = useRef(null);
   const statusProgressRef = useRef(null);
   const statusQueueRef = useRef([]);
@@ -461,6 +463,26 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   };
 
+  const handleDeleteStatus = useCallback(
+    async (statusId) => {
+      if (!statusId) return;
+      setStatusDeletingId(statusId);
+      try {
+        await apiRequest(`/status/${statusId}`, {
+          method: "DELETE",
+          token: authToken,
+        });
+        setStatusMenuOpenId(null);
+        await loadStatuses();
+      } catch (error) {
+        setStatusError(error.message || "Failed to delete status");
+      } finally {
+        setStatusDeletingId(null);
+      }
+    },
+    [authToken, loadStatuses]
+  );
+
   const stopStatusTimer = () => {
     if (statusTimerRef.current) {
       clearInterval(statusTimerRef.current);
@@ -751,6 +773,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   const seen = list.filter((s) => isStatusSeen(s.id));
 
                   const openStatus = (status) => {
+                    setStatusMenuOpenId(null);
                     const list =
                       status.ownerId === currentUser.id
                         ? statuses.filter((s) => s.ownerId === currentUser.id)
@@ -811,22 +834,33 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                       </button>
 
                       {status.ownerId === currentUser.id && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await apiRequest(`/status/${status.id}`, {
-                              method: "DELETE",
-                              token: authToken,
-                            });
-                            loadStatuses();
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10"
-                          aria-label="Delete status"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-                            <path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-                          </svg>
-                        </button>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStatusMenuOpenId((prev) => (prev === status.id ? null : status.id))
+                            }
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10"
+                            aria-label="Status options"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                              <path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                            </svg>
+                          </button>
+
+                          {statusMenuOpenId === status.id && (
+                            <div className="absolute right-0 top-9 z-20 w-32 rounded-lg border border-white/20 bg-[#111b21] p-1 shadow-xl">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStatus(status.id)}
+                                disabled={statusDeletingId === status.id}
+                                className="w-full rounded-md px-3 py-2 text-left text-xs text-rose-300 hover:bg-white/10 disabled:opacity-60"
+                              >
+                                {statusDeletingId === status.id ? "Deleting..." : "Delete"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );

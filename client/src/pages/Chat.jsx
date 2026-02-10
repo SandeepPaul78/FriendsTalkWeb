@@ -27,6 +27,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [activeStatus, setActiveStatus] = useState(null);
   const [statusReply, setStatusReply] = useState("");
   const [statusReplyError, setStatusReplyError] = useState("");
+  const statusTimerRef = useRef(null);
+  const statusProgressRef = useRef(null);
+  const statusQueueRef = useRef([]);
+  const statusIndexRef = useRef(0);
+  const [statusProgress, setStatusProgress] = useState(0);
+  const STATUS_DURATION_MS = 30000;
   const [callHistory, setCallHistory] = useState([]);
   const [callHistoryLoading, setCallHistoryLoading] = useState(false);
   const [autoStartCall, setAutoStartCall] = useState(null); // { type, contactId, token }
@@ -166,6 +172,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         mediaMime: data.mediaMime || null,
         mediaName: data.mediaName || null,
         mediaSize: data.mediaSize || null,
+        statusId: data.statusId || null,
+        statusOwner: data.statusOwner || null,
+        statusMediaUrl: data.statusMediaUrl || "",
+        statusMediaType: data.statusMediaType || "",
+        statusText: data.statusText || "",
         deliveredAt: data.deliveredAt || null,
         readAt: data.readAt || null,
         timestamp: data.timestamp || Date.now(),
@@ -371,11 +382,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       if (!statusId) return;
       try {
         await apiRequest(`/status/${statusId}/seen`, { method: "POST", token: authToken });
-        setStatuses((prev) =>
-          prev.map((item) =>
-            item.id === statusId ? { ...item, isSeen: true, seenCount: (item.seenCount || 0) } : item
-          )
-        );
+            setStatuses((prev) =>
+              prev.map((item) =>
+                item.id === statusId ? { ...item, isSeen: true } : item
+              )
+            );
       } catch (error) {
         console.error("mark status seen failed", error);
       }
@@ -415,6 +426,25 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   };
 
+  const handleTextStatus = async () => {
+    const text = window.prompt("Write your status") || "";
+    if (!text.trim()) return;
+    setStatusUploading(true);
+    setStatusError("");
+    try {
+      await uploadRequest("/status/upload", {
+        token: authToken,
+        file: null,
+        fields: { text: text.trim() },
+      });
+      await loadStatuses();
+    } catch (error) {
+      setStatusError(error.message || "Status upload failed");
+    } finally {
+      setStatusUploading(false);
+    }
+  };
+
   const handleStatusReply = async () => {
     if (!activeStatus || !statusReply.trim()) return;
     setStatusReplyError("");
@@ -431,11 +461,54 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   };
 
+  const stopStatusTimer = () => {
+    if (statusTimerRef.current) {
+      clearInterval(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
+  };
+
+  const startStatusTimer = useCallback(() => {
+    stopStatusTimer();
+    setStatusProgress(0);
+    const startedAt = Date.now();
+    statusTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const progress = Math.min(100, (elapsed / STATUS_DURATION_MS) * 100);
+      setStatusProgress(progress);
+      if (progress >= 100) {
+        stopStatusTimer();
+        const nextIndex = statusIndexRef.current + 1;
+        const queue = statusQueueRef.current;
+        if (nextIndex < queue.length) {
+          statusIndexRef.current = nextIndex;
+          const nextStatus = queue[nextIndex];
+          setActiveStatus(nextStatus);
+          if (nextStatus.ownerId !== currentUser.id) {
+            markStatusSeen(nextStatus.id);
+          }
+          setTimeout(startStatusTimer, 0);
+        } else {
+          setActiveStatus(null);
+        }
+      }
+    }, 120);
+  }, [STATUS_DURATION_MS, currentUser.id, markStatusSeen]);
+
   useEffect(() => {
     if (activeTab === "status") {
       loadStatuses();
     }
   }, [activeTab, loadStatuses]);
+
+  useEffect(() => {
+    if (!activeStatus) {
+      stopStatusTimer();
+      return;
+    }
+    startStatusTimer();
+    return () => stopStatusTimer();
+  }, [activeStatus, startStatusTimer]);
 
   useEffect(() => {
     if (activeTab === "calls") {
@@ -620,21 +693,31 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold">My Status</p>
                       <p className="text-xs text-white/60">
-                        Add a photo or video update
+                        Add a photo, video, or text update
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => statusFileRef.current?.click()}
-                      disabled={statusUploading}
-                      className="rounded-full bg-[#25d366] px-3 py-1 text-xs font-semibold text-[#073e2a] hover:bg-[#1fc15c] disabled:opacity-60"
-                    >
-                      {statusUploading ? "Uploading..." : "Add"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTextStatus}
+                        disabled={statusUploading}
+                        className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-60"
+                      >
+                        Text
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => statusFileRef.current?.click()}
+                        disabled={statusUploading}
+                        className="rounded-full bg-[#25d366] px-3 py-1 text-xs font-semibold text-[#073e2a] hover:bg-[#1fc15c] disabled:opacity-60"
+                      >
+                        {statusUploading ? "Uploading..." : "Media"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -667,18 +750,30 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   const unseen = list.filter((s) => !isStatusSeen(s.id));
                   const seen = list.filter((s) => isStatusSeen(s.id));
 
+                  const openStatus = (status) => {
+                    const list =
+                      status.ownerId === currentUser.id
+                        ? statuses.filter((s) => s.ownerId === currentUser.id)
+                        : [...unseen, ...seen];
+                    statusQueueRef.current = list;
+                    const index = list.findIndex((item) => item.id === status.id);
+                    statusIndexRef.current = index >= 0 ? index : 0;
+                    setActiveStatus(list[statusIndexRef.current]);
+                    if (status.ownerId !== currentUser.id) {
+                      markStatusSeen(status.id);
+                    }
+                  };
+
                   const renderRow = (status) => (
-                    <button
+                    <div
                       key={status.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveStatus(status);
-                        if (status.ownerId !== currentUser.id) {
-                          markStatusSeen(status.id);
-                        }
-                      }}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left"
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
                     >
+                      <button
+                        type="button"
+                        onClick={() => openStatus(status)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
                       <div className="relative">
                         <div
                           className={`h-12 w-12 rounded-full border-2 ${
@@ -697,6 +792,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                             ▶
                           </div>
                         )}
+                        {status.mediaType === "text" && (
+                          <div className="absolute inset-1 flex h-10 w-10 items-center justify-center rounded-full bg-[#1f2c34] text-[10px] font-semibold text-white">
+                            T
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">
@@ -708,7 +808,27 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                           {new Date(status.createdAt).toLocaleString()}
                         </p>
                       </div>
-                    </button>
+                      </button>
+
+                      {status.ownerId === currentUser.id && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await apiRequest(`/status/${status.id}`, {
+                              method: "DELETE",
+                              token: authToken,
+                            });
+                            loadStatuses();
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10"
+                          aria-label="Delete status"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                            <path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   );
 
                   return (
@@ -843,6 +963,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
 
       {activeStatus && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="h-1 w-full bg-white/20">
+            <div
+              className="h-full bg-white"
+              style={{ width: `${statusProgress}%` }}
+            />
+          </div>
           <div className="flex items-center justify-between px-4 py-3 text-white">
             <div>
               <p className="text-sm font-semibold">
@@ -854,15 +980,49 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 {new Date(activeStatus.createdAt).toLocaleString()}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveStatus(null)}
-              className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white/90"
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              {activeStatus.ownerId === currentUser.id && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await apiRequest(`/status/${activeStatus.id}`, {
+                      method: "DELETE",
+                      token: authToken,
+                    });
+                    setActiveStatus(null);
+                    loadStatuses();
+                  }}
+                  className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white/90"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveStatus(null)}
+                className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white/90"
+              >
+                Close
+              </button>
+            </div>
           </div>
-          <div className="flex flex-1 items-center justify-center p-4">
+          <div
+            className="flex flex-1 items-center justify-center p-4"
+            onClick={() => {
+              const queue = statusQueueRef.current;
+              const nextIndex = statusIndexRef.current + 1;
+              if (nextIndex < queue.length) {
+                statusIndexRef.current = nextIndex;
+                const nextStatus = queue[nextIndex];
+                setActiveStatus(nextStatus);
+                if (nextStatus.ownerId !== currentUser.id) {
+                  markStatusSeen(nextStatus.id);
+                }
+              } else {
+                setActiveStatus(null);
+              }
+            }}
+          >
             {activeStatus.mediaType === "image" && (
               <img
                 src={activeStatus.mediaUrl}
@@ -877,6 +1037,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 autoPlay
                 className="max-h-full w-full rounded-2xl bg-black object-contain"
               />
+            )}
+            {activeStatus.mediaType === "text" && (
+              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-[#1f2c34] p-6 text-center text-xl font-semibold text-white">
+                {activeStatus.text}
+              </div>
             )}
           </div>
           {activeStatus.text && (

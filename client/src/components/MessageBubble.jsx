@@ -32,6 +32,29 @@ function MessageBubble({ message, isOwn }) {
             : "rounded-bl-md bg-white text-[#111b21]"
         }`}
       >
+        {message.statusId && (
+          <div className="mb-2 rounded-xl border border-slate-200 bg-white/70 p-2 text-[11px] text-slate-600">
+            <p className="font-semibold text-slate-700">Status reply</p>
+            {message.statusMediaType === "image" && message.statusMediaUrl && (
+              <img
+                src={message.statusMediaUrl}
+                alt="Status"
+                className="mt-2 max-h-24 w-full rounded-lg object-cover"
+              />
+            )}
+            {message.statusMediaType === "video" && (
+              <div className="mt-2 rounded-lg bg-black/70 px-2 py-3 text-center text-white">
+                Video
+              </div>
+            )}
+            {message.statusMediaType === "text" && message.statusText && (
+              <div className="mt-2 rounded-lg bg-slate-200 px-2 py-2 text-xs text-slate-700">
+                {message.statusText}
+              </div>
+            )}
+          </div>
+        )}
+
         {type === "text" && (
           <p className="text-[13px] leading-relaxed">{message.message}</p>
         )}

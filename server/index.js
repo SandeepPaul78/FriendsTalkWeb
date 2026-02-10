@@ -165,6 +165,8 @@ const messageSchema = new mongoose.Schema(
     mediaMime: { type: String, trim: true },
     mediaName: { type: String, trim: true },
     mediaSize: { type: Number },
+    statusId: { type: mongoose.Schema.Types.ObjectId, ref: "Status", default: null },
+    statusOwner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     deliveredAt: { type: Date, default: null },
     readAt: { type: Date, default: null },
   },
@@ -185,6 +187,17 @@ const statusSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+const statusSeenSchema = new mongoose.Schema(
+  {
+    status: { type: mongoose.Schema.Types.ObjectId, ref: "Status", required: true, index: true },
+    viewer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    seenAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+
+statusSeenSchema.index({ status: 1, viewer: 1 }, { unique: true });
 
 const callLogSchema = new mongoose.Schema(
   {
@@ -210,6 +223,7 @@ const Contact = mongoose.model("Contact", contactSchema);
 const OtpCode = mongoose.model("OtpCode", otpSchema);
 const Message = mongoose.model("Message", messageSchema);
 const Status = mongoose.model("Status", statusSchema);
+const StatusSeen = mongoose.model("StatusSeen", statusSeenSchema);
 const CallLog = mongoose.model("CallLog", callLogSchema);
 
 const onlineUserSockets = new Map(); // userId -> socketId
@@ -722,6 +736,40 @@ app.get("/status", requireAuth, async (req, res) => {
       .populate({ path: "owner", select: "phoneNumber" })
       .lean();
 
+    const statusIds = statuses.map((status) => status._id);
+    const seenEntries = await StatusSeen.find({
+      status: { $in: statusIds },
+      viewer: req.userId,
+    })
+      .select("status")
+      .lean();
+    const seenSet = new Set(seenEntries.map((entry) => entry.status.toString()));
+
+    const counts = await StatusSeen.aggregate([
+      { $match: { status: { $in: statusIds } } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(counts.map((row) => [row._id.toString(), row.count]));
+
+    const ownStatusIds = statuses
+      .filter((status) => status.owner?._id?.toString() === req.userId)
+      .map((status) => status._id);
+    const viewers = await StatusSeen.find({ status: { $in: ownStatusIds } })
+      .populate({ path: "viewer", select: "phoneNumber" })
+      .select("status viewer seenAt")
+      .lean();
+
+    const viewersMap = new Map();
+    viewers.forEach((entry) => {
+      const key = entry.status.toString();
+      if (!viewersMap.has(key)) viewersMap.set(key, []);
+      viewersMap.get(key).push({
+        viewerId: entry.viewer?._id?.toString() || entry.viewer.toString(),
+        viewerPhone: entry.viewer?.phoneNumber || "Unknown",
+        seenAt: entry.seenAt,
+      });
+    });
+
     return res.json({
       statuses: statuses.map((status) => ({
         id: status._id.toString(),
@@ -733,6 +781,12 @@ app.get("/status", requireAuth, async (req, res) => {
         mediaType: status.mediaType,
         createdAt: status.createdAt,
         expiresAt: status.expiresAt,
+        seenCount: countMap.get(status._id.toString()) || 0,
+        isSeen: seenSet.has(status._id.toString()),
+        viewers:
+          status.owner?._id?.toString() === req.userId
+            ? viewersMap.get(status._id.toString()) || []
+            : [],
       })),
     });
   } catch (error) {
@@ -797,6 +851,70 @@ app.post(
     }
   }
 );
+
+app.post("/status/:statusId/seen", requireAuth, async (req, res) => {
+  try {
+    const { statusId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(statusId)) {
+      return res.status(400).json({ error: "Invalid status id" });
+    }
+
+    await StatusSeen.findOneAndUpdate(
+      { status: statusId, viewer: req.userId },
+      { $setOnInsert: { seenAt: new Date() } },
+      { upsert: true, new: true }
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("status seen failed", error);
+    return res.status(500).json({ error: "Failed to mark seen" });
+  }
+});
+
+app.post("/status/:statusId/reply", requireAuth, async (req, res) => {
+  try {
+    const { statusId } = req.params;
+    const text = String(req.body?.message || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(statusId)) {
+      return res.status(400).json({ error: "Invalid status id" });
+    }
+    if (!text) {
+      return res.status(400).json({ error: "Message required" });
+    }
+
+    const status = await Status.findById(statusId).lean();
+    if (!status || status.expiresAt <= new Date()) {
+      return res.status(404).json({ error: "Status not found" });
+    }
+
+    const messageDoc = await Message.create({
+      sender: req.userId,
+      receiver: status.owner,
+      text,
+      type: "text",
+      statusId: status._id,
+      statusOwner: status.owner,
+    });
+
+    const payload = {
+      id: messageDoc._id.toString(),
+      from: req.userId,
+      fromPhone: req.user?.phoneNumber,
+      to: status.owner.toString(),
+      message: text,
+      type: "text",
+      timestamp: messageDoc.createdAt,
+    };
+
+    relayToUser(status.owner.toString(), "private-message", payload);
+
+    return res.json({ message: payload });
+  } catch (error) {
+    console.error("status reply failed", error);
+    return res.status(500).json({ error: "Failed to reply" });
+  }
+});
 
 app.get("/calls", requireAuth, async (req, res) => {
   try {

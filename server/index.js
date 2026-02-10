@@ -167,6 +167,9 @@ const messageSchema = new mongoose.Schema(
     mediaSize: { type: Number },
     statusId: { type: mongoose.Schema.Types.ObjectId, ref: "Status", default: null },
     statusOwner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    statusMediaUrl: { type: String, trim: true, default: "" },
+    statusMediaType: { type: String, trim: true, default: "" },
+    statusText: { type: String, trim: true, default: "" },
     deliveredAt: { type: Date, default: null },
     readAt: { type: Date, default: null },
   },
@@ -179,10 +182,10 @@ const statusSchema = new mongoose.Schema(
   {
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     text: { type: String, trim: true, default: "" },
-    mediaUrl: { type: String, trim: true, required: true },
+    mediaUrl: { type: String, trim: true, default: "" },
     mediaPublicId: { type: String, trim: true },
     mediaMime: { type: String, trim: true },
-    mediaType: { type: String, enum: ["image", "video"], required: true },
+    mediaType: { type: String, enum: ["image", "video", "text"], required: true },
     expiresAt: { type: Date, required: true, index: true },
   },
   { timestamps: true }
@@ -801,34 +804,42 @@ app.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: "File is required" });
+      const rawText = String(req.body?.text || "").slice(0, 240);
+      if (!req.file && !rawText) {
+        return res.status(400).json({ error: "File or text is required" });
       }
 
-      if (!cloudinary.config().cloud_name) {
-        return res.status(500).json({ error: "Cloudinary config missing" });
-      }
+      let uploadResult = null;
+      let mime = "";
+      let mediaType = "text";
 
-      const mime = req.file.mimetype || "";
-      const isImage = mime.startsWith("image/");
-      const isVideo = mime.startsWith("video/");
-      if (!isImage && !isVideo) {
-        return res.status(400).json({ error: "Only image or video allowed" });
-      }
+      if (req.file) {
+        if (!cloudinary.config().cloud_name) {
+          return res.status(500).json({ error: "Cloudinary config missing" });
+        }
 
-      const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
-        folder: "friendstalk/status",
-        resource_type: "auto",
-      });
+        mime = req.file.mimetype || "";
+        const isImage = mime.startsWith("image/");
+        const isVideo = mime.startsWith("video/");
+        if (!isImage && !isVideo) {
+          return res.status(400).json({ error: "Only image or video allowed" });
+        }
+
+        uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+          folder: "friendstalk/status",
+          resource_type: "auto",
+        });
+        mediaType = isImage ? "image" : "video";
+      }
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const statusDoc = await Status.create({
         owner: req.userId,
-        text: String(req.body?.text || "").slice(0, 240),
-        mediaUrl: uploadResult.secure_url,
-        mediaPublicId: uploadResult.public_id,
+        text: rawText,
+        mediaUrl: uploadResult?.secure_url || "",
+        mediaPublicId: uploadResult?.public_id || "",
         mediaMime: mime,
-        mediaType: isImage ? "image" : "video",
+        mediaType,
         expiresAt,
       });
 
@@ -838,8 +849,8 @@ app.post(
           ownerId: req.userId,
           ownerPhone: req.user?.phoneNumber || "You",
           text: statusDoc.text,
-          mediaUrl: statusDoc.mediaUrl,
-          mediaMime: statusDoc.mediaMime,
+          mediaUrl: statusDoc.mediaUrl || "",
+          mediaMime: statusDoc.mediaMime || null,
           mediaType: statusDoc.mediaType,
           createdAt: statusDoc.createdAt,
           expiresAt: statusDoc.expiresAt,
@@ -895,6 +906,9 @@ app.post("/status/:statusId/reply", requireAuth, async (req, res) => {
       type: "text",
       statusId: status._id,
       statusOwner: status.owner,
+      statusMediaUrl: status.mediaUrl || "",
+      statusMediaType: status.mediaType || "",
+      statusText: status.text || "",
     });
 
     const payload = {
@@ -904,6 +918,11 @@ app.post("/status/:statusId/reply", requireAuth, async (req, res) => {
       to: status.owner.toString(),
       message: text,
       type: "text",
+      statusId: status._id.toString(),
+      statusOwner: status.owner.toString(),
+      statusMediaUrl: status.mediaUrl || "",
+      statusMediaType: status.mediaType || "",
+      statusText: status.text || "",
       timestamp: messageDoc.createdAt,
     };
 
@@ -913,6 +932,28 @@ app.post("/status/:statusId/reply", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("status reply failed", error);
     return res.status(500).json({ error: "Failed to reply" });
+  }
+});
+
+app.delete("/status/:statusId", requireAuth, async (req, res) => {
+  try {
+    const { statusId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(statusId)) {
+      return res.status(400).json({ error: "Invalid status id" });
+    }
+
+    const status = await Status.findOne({ _id: statusId, owner: req.userId }).lean();
+    if (!status) {
+      return res.status(404).json({ error: "Status not found" });
+    }
+
+    await Status.deleteOne({ _id: statusId, owner: req.userId });
+    await StatusSeen.deleteMany({ status: statusId });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("delete status failed", error);
+    return res.status(500).json({ error: "Failed to delete status" });
   }
 });
 
@@ -1067,6 +1108,11 @@ app.get("/messages/:contactId", requireAuth, async (req, res) => {
         mediaMime: message.mediaMime || null,
         mediaName: message.mediaName || null,
         mediaSize: message.mediaSize || null,
+        statusId: message.statusId ? message.statusId.toString() : null,
+        statusOwner: message.statusOwner ? message.statusOwner.toString() : null,
+        statusMediaUrl: message.statusMediaUrl || "",
+        statusMediaType: message.statusMediaType || "",
+        statusText: message.statusText || "",
         deliveredAt: message.deliveredAt || null,
         readAt: message.readAt || null,
         timestamp: message.createdAt,

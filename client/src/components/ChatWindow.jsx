@@ -21,6 +21,8 @@ function ChatWindow({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [saveContactError, setSaveContactError] = useState("");
@@ -172,56 +174,88 @@ function ChatWindow({
             <button
               type="button"
               onClick={onBack}
-              className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 hover:bg-white/10 md:hidden"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white/90 hover:bg-white/10 md:hidden"
+              aria-label="Back"
             >
-              Back
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                <path d="M15.5 5.5 9 12l6.5 6.5-1.4 1.4L6.2 12l7.9-7.9z" />
+              </svg>
             </button>
             <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
-              Conversation
-            </p>
-            <h3 className="truncate font-display text-lg font-semibold text-white">
-              {selectedContact?.displayName || selectedContact?.phoneNumber || "Select a contact"}
-            </h3>
-            {selectedContact?.displayName && (
-              <p className="text-xs text-white/70">{selectedContact.phoneNumber}</p>
-            )}
+              <h3 className="truncate font-display text-lg font-semibold text-white">
+                {selectedContact?.displayName || selectedContact?.phoneNumber || "Select a contact"}
+              </h3>
+              {selectedContact?.displayName && (
+                <p className="text-xs text-white/70">{selectedContact.phoneNumber}</p>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {callControls}
-
-            {selectedContact && !selectedContact.isSaved && (
+            <div className="relative">
               <button
                 type="button"
-                onClick={handleSaveContact}
-                className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/10"
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white/90 hover:bg-white/10"
+                aria-label="Menu"
               >
-                Add
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <path d="M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                </svg>
               </button>
-            )}
 
-            {selectedContact && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/10"
-                >
-                  Wallpaper
-                </button>
-                {wallpaper && (
+              {showMenu && (
+                <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-[#1f2c34] bg-[#0b141a] p-1 text-xs text-white shadow-xl">
+                  {selectedContact && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfile(true);
+                        setShowMenu(false);
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+                    >
+                      View profile
+                    </button>
+                  )}
+                  {selectedContact && !selectedContact.isSaved && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSaveContact();
+                        setShowMenu(false);
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+                    >
+                      Add contact
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={clearWallpaper}
-                    className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/80 transition hover:bg-white/10"
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                      setShowMenu(false);
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
                   >
-                    Clear
+                    Wallpaper
                   </button>
-                )}
-              </>
-            )}
+                  {wallpaper && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearWallpaper();
+                        setShowMenu(false);
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+                    >
+                      Clear wallpaper
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -471,6 +505,30 @@ function ChatWindow({
             />
             
             <div className="w-20" />
+          </div>
+        </div>
+      )}
+
+      {showProfile && selectedContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <div className="w-full max-w-sm rounded-2xl border border-[#1f2c34] bg-[#111b21] p-5 text-white">
+            <h3 className="font-display text-lg font-semibold">Contact info</h3>
+            <p className="mt-2 text-sm">
+              {selectedContact.displayName || "Unknown"}
+            </p>
+            <p className="text-xs text-white/70">{selectedContact.phoneNumber}</p>
+            {!selectedContact.isSaved && (
+              <p className="mt-2 text-xs text-amber-300">Unsaved contact</p>
+            )}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowProfile(false)}
+                className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white/90 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

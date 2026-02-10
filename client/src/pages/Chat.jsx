@@ -25,6 +25,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [statusUploading, setStatusUploading] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [activeStatus, setActiveStatus] = useState(null);
+  const [statusReply, setStatusReply] = useState("");
+  const [statusReplyError, setStatusReplyError] = useState("");
   const [callHistory, setCallHistory] = useState([]);
   const [callHistoryLoading, setCallHistoryLoading] = useState(false);
   const [autoStartCall, setAutoStartCall] = useState(null); // { type, contactId, token }
@@ -54,6 +56,14 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const selectedContact = useMemo(() => {
     return contacts.find((contact) => contact.id === selectedContactId) || null;
   }, [contacts, selectedContactId]);
+
+  const contactNameById = useMemo(() => {
+    const map = new Map();
+    contacts.forEach((contact) => {
+      map.set(contact.id, contact.displayName || contact.phoneNumber);
+    });
+    return map;
+  }, [contacts]);
 
   const clearCountsForContact = useCallback((contactId) => {
     if (!contactId) return;
@@ -351,25 +361,26 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   }, [authToken]);
 
-  const statusSeenKey = useCallback(
-    (statusId) => `ft_status_seen_${currentUser?.id || "me"}_${statusId}`,
-    [currentUser?.id]
-  );
-
-  const isStatusSeen = useCallback(
-    (statusId) => {
-      if (!statusId) return false;
-      return localStorage.getItem(statusSeenKey(statusId)) === "1";
-    },
-    [statusSeenKey]
-  );
+  const isStatusSeen = useCallback((statusId) => {
+    const status = statuses.find((item) => item.id === statusId);
+    return Boolean(status?.isSeen);
+  }, [statuses]);
 
   const markStatusSeen = useCallback(
-    (statusId) => {
+    async (statusId) => {
       if (!statusId) return;
-      localStorage.setItem(statusSeenKey(statusId), "1");
+      try {
+        await apiRequest(`/status/${statusId}/seen`, { method: "POST", token: authToken });
+        setStatuses((prev) =>
+          prev.map((item) =>
+            item.id === statusId ? { ...item, isSeen: true, seenCount: (item.seenCount || 0) } : item
+          )
+        );
+      } catch (error) {
+        console.error("mark status seen failed", error);
+      }
     },
-    [statusSeenKey]
+    [authToken]
   );
 
   const loadCallHistory = useCallback(async () => {
@@ -401,6 +412,22 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       setStatusError(error.message || "Status upload failed");
     } finally {
       setStatusUploading(false);
+    }
+  };
+
+  const handleStatusReply = async () => {
+    if (!activeStatus || !statusReply.trim()) return;
+    setStatusReplyError("");
+    try {
+      await apiRequest(`/status/${activeStatus.id}/reply`, {
+        method: "POST",
+        token: authToken,
+        body: { message: statusReply.trim() },
+      });
+      setStatusReply("");
+      setActiveStatus(null);
+    } catch (error) {
+      setStatusReplyError(error.message || "Failed to reply");
     }
   };
 
@@ -646,7 +673,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                       type="button"
                       onClick={() => {
                         setActiveStatus(status);
-                        markStatusSeen(status.id);
+                        if (status.ownerId !== currentUser.id) {
+                          markStatusSeen(status.id);
+                        }
                       }}
                       className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left"
                     >
@@ -670,7 +699,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{status.ownerPhone}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {status.ownerId === currentUser.id
+                            ? "My Status"
+                            : contactNameById.get(status.ownerId) || status.ownerPhone}
+                        </p>
                         <p className="text-xs text-white/60">
                           {new Date(status.createdAt).toLocaleString()}
                         </p>
@@ -680,6 +713,14 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
 
                   return (
                     <div className="grid gap-3">
+                      {statuses.filter((s) => s.ownerId === currentUser.id).length > 0 && (
+                        <>
+                          <div className="text-xs font-semibold text-white/60">My Status</div>
+                          {statuses
+                            .filter((s) => s.ownerId === currentUser.id)
+                            .map(renderRow)}
+                        </>
+                      )}
                       {unseen.length > 0 && (
                         <div className="text-xs font-semibold text-white/60">Recent</div>
                       )}
@@ -739,7 +780,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                       className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{call.peerPhone}</p>
+                      <p className="truncate text-sm font-semibold">
+                        {contactNameById.get(call.peerId) || call.peerPhone}
+                      </p>
                         <p className="text-xs text-white/60">
                           {call.callType} · {call.direction} · {call.status}
                         </p>
@@ -802,7 +845,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <div className="flex items-center justify-between px-4 py-3 text-white">
             <div>
-              <p className="text-sm font-semibold">{activeStatus.ownerPhone}</p>
+              <p className="text-sm font-semibold">
+                {activeStatus.ownerId === currentUser.id
+                  ? "My Status"
+                  : contactNameById.get(activeStatus.ownerId) || activeStatus.ownerPhone}
+              </p>
               <p className="text-xs text-white/60">
                 {new Date(activeStatus.createdAt).toLocaleString()}
               </p>
@@ -834,6 +881,42 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           </div>
           {activeStatus.text && (
             <div className="px-4 pb-4 text-sm text-white/90">{activeStatus.text}</div>
+          )}
+          {activeStatus.ownerId === currentUser.id ? (
+            <div className="border-t border-white/10 px-4 py-3 text-xs text-white/70">
+              Seen by {activeStatus.seenCount || 0}
+              {activeStatus.viewers?.length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-2">
+                  {activeStatus.viewers.map((viewer) => (
+                    <div key={viewer.viewerId} className="py-1 text-xs text-white/80">
+                      {contactNameById.get(viewer.viewerId) || viewer.viewerPhone} ·{" "}
+                      {new Date(viewer.seenAt).toLocaleString()}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="border-t border-white/10 px-4 py-3">
+              {statusReplyError && (
+                <p className="mb-2 text-xs text-rose-300">{statusReplyError}</p>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  value={statusReply}
+                  onChange={(e) => setStatusReply(e.target.value)}
+                  placeholder="Reply to status..."
+                  className="flex-1 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs text-white outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleStatusReply}
+                  className="rounded-full bg-[#25d366] px-4 py-2 text-xs font-semibold text-[#073e2a]"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

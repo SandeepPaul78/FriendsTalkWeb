@@ -173,10 +173,44 @@ const messageSchema = new mongoose.Schema(
 
 messageSchema.index({ sender: 1, receiver: 1, createdAt: 1 });
 
+const statusSchema = new mongoose.Schema(
+  {
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    text: { type: String, trim: true, default: "" },
+    mediaUrl: { type: String, trim: true, required: true },
+    mediaPublicId: { type: String, trim: true },
+    mediaMime: { type: String, trim: true },
+    mediaType: { type: String, enum: ["image", "video"], required: true },
+    expiresAt: { type: Date, required: true, index: true },
+  },
+  { timestamps: true }
+);
+
+const callLogSchema = new mongoose.Schema(
+  {
+    callId: { type: String, index: true },
+    caller: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    callee: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    callType: { type: String, enum: ["audio", "video"], required: true },
+    status: {
+      type: String,
+      enum: ["ringing", "connected", "ended", "rejected", "missed", "busy"],
+      default: "ringing",
+      index: true,
+    },
+    startedAt: { type: Date, required: true },
+    answeredAt: { type: Date, default: null },
+    endedAt: { type: Date, default: null },
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model("User", userSchema);
 const Contact = mongoose.model("Contact", contactSchema);
 const OtpCode = mongoose.model("OtpCode", otpSchema);
 const Message = mongoose.model("Message", messageSchema);
+const Status = mongoose.model("Status", statusSchema);
+const CallLog = mongoose.model("CallLog", callLogSchema);
 
 const onlineUserSockets = new Map(); // userId -> socketId
 const userBySocket = new Map(); // socketId -> userId
@@ -296,6 +330,40 @@ const sanitizeDisplayName = (rawName) => {
 
   if (!cleaned) return "";
   return cleaned.slice(0, 60);
+};
+
+const getVisibleContactIds = async (userId) => {
+  const ownerId = new mongoose.Types.ObjectId(userId);
+
+  const savedContacts = await Contact.find({ owner: userId })
+    .select("contact")
+    .lean();
+
+  const peerMessageData = await Message.aggregate([
+    {
+      $match: {
+        $or: [{ sender: ownerId }, { receiver: ownerId }],
+      },
+    },
+    {
+      $project: {
+        peer: {
+          $cond: [{ $eq: ["$sender", ownerId] }, "$receiver", "$sender"],
+        },
+      },
+    },
+    { $group: { _id: "$peer" } },
+  ]);
+
+  const ids = new Set();
+  savedContacts.forEach((entry) => {
+    if (entry.contact) ids.add(entry.contact.toString());
+  });
+  peerMessageData.forEach((entry) => {
+    if (entry._id) ids.add(entry._id.toString());
+  });
+
+  return Array.from(ids);
 };
 
 const requireAuth = async (req, res, next) => {
@@ -640,6 +708,144 @@ app.delete("/contacts/:contactId", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/status", requireAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const contactIds = await getVisibleContactIds(req.userId);
+    const ownerIds = [req.userId, ...contactIds];
+
+    const statuses = await Status.find({
+      owner: { $in: ownerIds },
+      expiresAt: { $gt: now },
+    })
+      .sort({ createdAt: -1 })
+      .populate({ path: "owner", select: "phoneNumber" })
+      .lean();
+
+    return res.json({
+      statuses: statuses.map((status) => ({
+        id: status._id.toString(),
+        ownerId: status.owner?._id?.toString() || status.owner.toString(),
+        ownerPhone: status.owner?.phoneNumber || "Unknown",
+        text: status.text || "",
+        mediaUrl: status.mediaUrl,
+        mediaMime: status.mediaMime || null,
+        mediaType: status.mediaType,
+        createdAt: status.createdAt,
+        expiresAt: status.expiresAt,
+      })),
+    });
+  } catch (error) {
+    console.error("get status failed", error);
+    return res.status(500).json({ error: "Failed to fetch status" });
+  }
+});
+
+app.post(
+  "/status/upload",
+  requireAuth,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "File is required" });
+      }
+
+      if (!cloudinary.config().cloud_name) {
+        return res.status(500).json({ error: "Cloudinary config missing" });
+      }
+
+      const mime = req.file.mimetype || "";
+      const isImage = mime.startsWith("image/");
+      const isVideo = mime.startsWith("video/");
+      if (!isImage && !isVideo) {
+        return res.status(400).json({ error: "Only image or video allowed" });
+      }
+
+      const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+        folder: "friendstalk/status",
+        resource_type: "auto",
+      });
+
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const statusDoc = await Status.create({
+        owner: req.userId,
+        text: String(req.body?.text || "").slice(0, 240),
+        mediaUrl: uploadResult.secure_url,
+        mediaPublicId: uploadResult.public_id,
+        mediaMime: mime,
+        mediaType: isImage ? "image" : "video",
+        expiresAt,
+      });
+
+      return res.json({
+        status: {
+          id: statusDoc._id.toString(),
+          ownerId: req.userId,
+          ownerPhone: req.user?.phoneNumber || "You",
+          text: statusDoc.text,
+          mediaUrl: statusDoc.mediaUrl,
+          mediaMime: statusDoc.mediaMime,
+          mediaType: statusDoc.mediaType,
+          createdAt: statusDoc.createdAt,
+          expiresAt: statusDoc.expiresAt,
+        },
+      });
+    } catch (error) {
+      console.error("upload status failed", error);
+      return res.status(500).json({ error: "Failed to upload status" });
+    }
+  }
+);
+
+app.get("/calls", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const logs = await CallLog.find({
+      $or: [{ caller: userId }, { callee: userId }],
+    })
+      .sort({ startedAt: -1 })
+      .limit(100)
+      .lean();
+
+    const peerIds = new Set();
+    logs.forEach((log) => {
+      const peerId =
+        log.caller.toString() === userId ? log.callee.toString() : log.caller.toString();
+      peerIds.add(peerId);
+    });
+
+    const peers = await User.find({ _id: { $in: Array.from(peerIds) } })
+      .select("phoneNumber")
+      .lean();
+    const peerMap = new Map(peers.map((peer) => [peer._id.toString(), peer.phoneNumber]));
+
+    return res.json({
+      calls: logs.map((log) => {
+        const callerId = log.caller.toString();
+        const calleeId = log.callee.toString();
+        const isOutgoing = callerId === userId;
+        const peerId = isOutgoing ? calleeId : callerId;
+        return {
+          id: log._id.toString(),
+          callId: log.callId,
+          peerId,
+          peerPhone: peerMap.get(peerId) || "Unknown",
+          direction: isOutgoing ? "outgoing" : "incoming",
+          callType: log.callType,
+          status: log.status,
+          startedAt: log.startedAt,
+          answeredAt: log.answeredAt || null,
+          endedAt: log.endedAt || null,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("get calls failed", error);
+    return res.status(500).json({ error: "Failed to fetch call history" });
+  }
+});
+
 app.post(
   "/messages/:contactId/upload",
   requireAuth,
@@ -907,6 +1113,16 @@ io.on("connection", (socket) => {
   socket.on("call-user", ({ to, offer, callType, callId }) => {
     if (!to || !mongoose.Types.ObjectId.isValid(to) || !offer) return;
 
+    const startedAt = new Date();
+    const logEntry = new CallLog({
+      callId,
+      caller: userId,
+      callee: to,
+      callType: callType || "audio",
+      status: "ringing",
+      startedAt,
+    });
+
     const delivered = relayToUser(to, "incoming-call", {
       from: userId,
       fromPhone: phoneNumber,
@@ -916,6 +1132,8 @@ io.on("connection", (socket) => {
     });
 
     if (!delivered) {
+      logEntry.status = "missed";
+      logEntry.endedAt = new Date();
       socket.emit("call-rejected", {
         from: to,
         callType,
@@ -923,6 +1141,10 @@ io.on("connection", (socket) => {
         reason: "offline",
       });
     }
+
+    logEntry.save().catch((error) => {
+      console.error("call log create failed", error);
+    });
   });
 
   socket.on("answer-call", ({ to, answer, callType, callId }) => {
@@ -930,6 +1152,13 @@ io.on("connection", (socket) => {
 
     activeCalls.set(userId, { peer: to, callType, callId });
     activeCalls.set(to, { peer: userId, callType, callId });
+
+    CallLog.findOneAndUpdate(
+      { callId, caller: to, callee: userId, status: "ringing" },
+      { $set: { status: "connected", answeredAt: new Date() } }
+    ).catch((error) => {
+      console.error("call log answer update failed", error);
+    });
 
     relayToUser(to, "call-answered", {
       from: userId,
@@ -942,6 +1171,14 @@ io.on("connection", (socket) => {
 
   socket.on("reject-call", ({ to, callType, callId, reason }) => {
     if (!to || !mongoose.Types.ObjectId.isValid(to)) return;
+
+    const status = reason === "busy" ? "busy" : reason === "rejected" ? "rejected" : "missed";
+    CallLog.findOneAndUpdate(
+      { callId, caller: to, callee: userId },
+      { $set: { status, endedAt: new Date() } }
+    ).catch((error) => {
+      console.error("call log reject update failed", error);
+    });
 
     relayToUser(to, "call-rejected", {
       from: userId,
@@ -964,6 +1201,13 @@ io.on("connection", (socket) => {
         callType: active.callType || callType,
         callId: active.callId || callId,
       });
+
+      CallLog.findOneAndUpdate(
+        { callId: active.callId || callId, $or: [{ caller: userId }, { callee: userId }] },
+        { $set: { status: "ended", endedAt: new Date() } }
+      ).catch((error) => {
+        console.error("call log end update failed", error);
+      });
       return;
     }
 
@@ -973,6 +1217,13 @@ io.on("connection", (socket) => {
       fromPhone: phoneNumber,
       callType,
       callId,
+    });
+
+    CallLog.findOneAndUpdate(
+      { callId, $or: [{ caller: userId }, { callee: userId }] },
+      { $set: { status: "ended", endedAt: new Date() } }
+    ).catch((error) => {
+      console.error("call log end update failed", error);
     });
   });
 

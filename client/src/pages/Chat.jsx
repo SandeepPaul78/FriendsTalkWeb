@@ -23,6 +23,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [statuses, setStatuses] = useState([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusUploading, setStatusUploading] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const [callHistory, setCallHistory] = useState([]);
   const [callHistoryLoading, setCallHistoryLoading] = useState(false);
   const [autoStartCall, setAutoStartCall] = useState(null); // { type, contactId, token }
@@ -364,6 +365,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const handleStatusUpload = async (file) => {
     if (!file) return;
     setStatusUploading(true);
+    setStatusError("");
     try {
       const text = window.prompt("Status text (optional)") || "";
       await uploadRequest("/status/upload", {
@@ -374,6 +376,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       await loadStatuses();
     } catch (error) {
       console.error("status upload failed", error);
+      setStatusError(error.message || "Status upload failed");
     } finally {
       setStatusUploading(false);
     }
@@ -586,6 +589,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   </div>
                 </div>
 
+                {statusError && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {statusError}
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={loadStatuses}
@@ -716,28 +725,30 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#1f2c34] bg-[#111b21] md:hidden">
-        <div className="mx-auto flex max-w-6xl items-center justify-around px-4 py-2 text-xs text-white/70">
-          {[
-            { key: "chats", label: "Chats" },
-            { key: "status", label: "Status" },
-            { key: "calls", label: "Calls" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => handleTabChange(tab.key)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                activeTab === tab.key
-                  ? "bg-[#25d366] text-[#073e2a]"
-                  : "text-white/70"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {!isChatOpen && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#1f2c34] bg-[#111b21] md:hidden">
+          <div className="mx-auto flex max-w-6xl items-center justify-around px-4 py-2 text-xs text-white/70">
+            {[
+              { key: "chats", label: "Chats" },
+              { key: "status", label: "Status" },
+              { key: "calls", label: "Calls" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleTabChange(tab.key)}
+                className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                  activeTab === tab.key
+                    ? "bg-[#25d366] text-[#073e2a]"
+                    : "text-white/70"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

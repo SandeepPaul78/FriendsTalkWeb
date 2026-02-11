@@ -21,6 +21,7 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const OTP_FROM_EMAIL = process.env.OTP_FROM_EMAIL || "";
 const OTP_FROM_NAME = process.env.OTP_FROM_NAME || "FriendsTalk";
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 15);
+const STATUS_MAX_UPLOAD_MB = Number(process.env.STATUS_MAX_UPLOAD_MB || 80);
 
 if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL });
@@ -79,6 +80,11 @@ app.use(express.json());
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+});
+
+const uploadStatus = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: STATUS_MAX_UPLOAD_MB * 1024 * 1024 },
 });
 
 const uploadBufferToCloudinary = (buffer, options) =>
@@ -801,10 +807,15 @@ app.get("/status", requireAuth, async (req, res) => {
 app.post(
   "/status/upload",
   requireAuth,
-  upload.single("file"),
+  uploadStatus.single("file"),
   async (req, res) => {
     try {
       const rawText = String(req.body?.text || "").slice(0, 240);
+      const requestedClipStartSec = Math.max(0, Number(req.body?.clipStartSec || 0) || 0);
+      const requestedClipDurationSec = Math.min(
+        30,
+        Math.max(0.5, Number(req.body?.clipDurationSec || 30) || 30)
+      );
       if (!req.file && !rawText) {
         return res.status(400).json({ error: "File or text is required" });
       }
@@ -812,6 +823,7 @@ app.post(
       let uploadResult = null;
       let mime = "";
       let mediaType = "text";
+      let mediaUrl = "";
 
       if (req.file) {
         if (!cloudinary.config().cloud_name) {
@@ -830,13 +842,30 @@ app.post(
           resource_type: "auto",
         });
         mediaType = isImage ? "image" : "video";
+        mediaUrl = uploadResult?.secure_url || "";
+        if (mediaType === "video" && uploadResult?.public_id) {
+          const fullDurationSec = Number(uploadResult?.duration || 0) || 0;
+          const maxStartSec = Math.max(0, fullDurationSec - 0.5);
+          const clipStartSec = Math.min(requestedClipStartSec, maxStartSec);
+          const remainingSec = Math.max(0.5, fullDurationSec - clipStartSec);
+          const clipDurationSec =
+            fullDurationSec > 0
+              ? Math.min(requestedClipDurationSec, remainingSec)
+              : requestedClipDurationSec;
+
+          mediaUrl = cloudinary.url(uploadResult.public_id, {
+            resource_type: "video",
+            secure: true,
+            transformation: [{ start_offset: clipStartSec, duration: clipDurationSec }],
+          });
+        }
       }
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const statusDoc = await Status.create({
         owner: req.userId,
         text: rawText,
-        mediaUrl: uploadResult?.secure_url || "",
+        mediaUrl,
         mediaPublicId: uploadResult?.public_id || "",
         mediaMime: mime,
         mediaType,
@@ -1122,6 +1151,19 @@ app.get("/messages/:contactId", requireAuth, async (req, res) => {
     console.error("get messages failed", error);
     return res.status(500).json({ error: "Failed to fetch messages" });
   }
+});
+
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+    const isStatusRoute = req.path.startsWith("/status/");
+    const maxMb = isStatusRoute ? STATUS_MAX_UPLOAD_MB : MAX_UPLOAD_MB;
+    return res.status(413).json({ error: `File too large. Max ${maxMb}MB allowed` });
+  }
+
+  if (error) {
+    console.error("Unhandled request error", error);
+  }
+  return next(error);
 });
 
 io.use(async (socket, next) => {

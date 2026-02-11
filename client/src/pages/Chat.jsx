@@ -17,6 +17,15 @@ const formatClipTime = (seconds) => {
   return `${mins}:${secs}`;
 };
 
+const isVideoFile = (file) => {
+  if (!file) return false;
+  const mime = String(file.type || "").toLowerCase();
+  if (mime.startsWith("video/")) return true;
+
+  const name = String(file.name || "").toLowerCase();
+  return /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpg|mpeg|ts)$/i.test(name);
+};
+
 function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
@@ -429,39 +438,6 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     };
   }, [statusVideoEditor?.previewUrl]);
 
-  useEffect(() => {
-    if (!statusVideoEditor?.previewUrl || !statusVideoEditor.loadingMeta) return;
-
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.src = statusVideoEditor.previewUrl;
-    probe.onloadedmetadata = () => {
-      const durationSec = Number(probe.duration) || 0;
-      setStatusVideoEditor((prev) =>
-        prev
-          ? {
-              ...prev,
-              loadingMeta: false,
-              durationSec,
-              startSec: 0,
-            }
-          : prev
-      );
-      probe.src = "";
-    };
-    probe.onerror = () => {
-      setStatusError("Video read failed. Try another file.");
-      setStatusVideoEditor(null);
-      probe.src = "";
-    };
-
-    return () => {
-      probe.onloadedmetadata = null;
-      probe.onerror = null;
-      probe.src = "";
-    };
-  }, [statusVideoEditor?.previewUrl, statusVideoEditor?.loadingMeta]);
-
   const openStatusVideoEditor = useCallback((file) => {
     if (!file) return;
     setStatusError("");
@@ -511,7 +487,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   };
 
   const handleStatusVideoTrimUpload = useCallback(async () => {
-    if (!statusVideoEditor?.file || statusVideoEditor.loadingMeta) return;
+    if (!statusVideoEditor?.file) return;
 
     const durationSec = Number(statusVideoEditor.durationSec) || 0;
     const maxStartSec = Math.max(0, durationSec - 30);
@@ -996,7 +972,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) {
-                    if ((file.type || "").startsWith("video/")) {
+                    if (isVideoFile(file)) {
                       openStatusVideoEditor(file);
                     } else {
                       handleStatusUpload(file);
@@ -1135,13 +1111,30 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   controls
                   className="mb-3 h-56 w-full rounded-xl bg-black object-contain"
                   onLoadedMetadata={(event) => {
-                    if (!durationSec) {
-                      return;
-                    }
+                    const measuredDuration = Number(event.currentTarget.duration) || 0;
+                    setStatusVideoEditor((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            loadingMeta: false,
+                            durationSec: measuredDuration,
+                          }
+                        : prev
+                    );
                     const player = event.currentTarget;
                     if (player.currentTime < startSec || player.currentTime > endSec) {
                       player.currentTime = startSec;
                     }
+                  }}
+                  onError={() => {
+                    setStatusVideoEditor((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            loadingMeta: false,
+                          }
+                        : prev
+                    );
                   }}
                   onTimeUpdate={(event) => {
                     const player = event.currentTarget;
@@ -1180,7 +1173,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                     }
                   }}
                   className="mb-3 w-full accent-[#25d366]"
-                  disabled={statusUploading || statusVideoEditor.loadingMeta || maxStartSec <= 0}
+                  disabled={statusUploading || maxStartSec <= 0}
                 />
 
                 <input
@@ -1198,7 +1191,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 <button
                   type="button"
                   onClick={handleStatusVideoTrimUpload}
-                  disabled={statusUploading || statusVideoEditor.loadingMeta}
+                  disabled={statusUploading}
                   className="w-full rounded-xl bg-[#25d366] px-4 py-2 text-sm font-semibold text-[#073e2a] disabled:opacity-60"
                 >
                   {statusUploading ? "Uploading..." : "Upload 30s status"}

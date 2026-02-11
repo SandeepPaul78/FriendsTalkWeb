@@ -22,6 +22,7 @@ const OTP_FROM_EMAIL = process.env.OTP_FROM_EMAIL || "";
 const OTP_FROM_NAME = process.env.OTP_FROM_NAME || "FriendsTalk";
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 15);
 const STATUS_MAX_UPLOAD_MB = Number(process.env.STATUS_MAX_UPLOAD_MB || 80);
+const STATUS_VIDEO_CLIP_MAX_SEC = Number(process.env.STATUS_VIDEO_CLIP_MAX_SEC || 15);
 
 if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL });
@@ -86,6 +87,66 @@ const uploadStatus = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: STATUS_MAX_UPLOAD_MB * 1024 * 1024 },
 });
+
+const IMAGE_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "bmp",
+  "webp",
+  "avif",
+  "heic",
+  "heif",
+  "tif",
+  "tiff",
+  "jxl",
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  "mp4",
+  "mov",
+  "m4v",
+  "webm",
+  "3gp",
+  "mkv",
+  "avi",
+  "mpg",
+  "mpeg",
+  "ts",
+  "mts",
+  "m2ts",
+  "ogv",
+  "ogg",
+  "wmv",
+  "flv",
+  "asf",
+  "hevc",
+  "h265",
+  "h264",
+]);
+
+const getLowerExt = (fileName = "") => {
+  const name = String(fileName || "").toLowerCase();
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= -1 || dotIndex === name.length - 1) return "";
+  return name.slice(dotIndex + 1);
+};
+
+const classifyStatusFile = (file) => {
+  const mime = String(file?.mimetype || "").toLowerCase();
+  const ext = getLowerExt(file?.originalname);
+
+  const imageByMime = mime.startsWith("image/");
+  const videoByMime = mime.startsWith("video/");
+  const imageByExt = IMAGE_EXTENSIONS.has(ext);
+  const videoByExt = VIDEO_EXTENSIONS.has(ext);
+
+  const isImage = imageByMime || (!videoByMime && imageByExt);
+  const isVideo = videoByMime || (!imageByMime && videoByExt);
+
+  return { isImage, isVideo };
+};
 
 const uploadBufferToCloudinary = (buffer, options) =>
   new Promise((resolve, reject) => {
@@ -813,8 +874,8 @@ app.post(
       const rawText = String(req.body?.text || "").slice(0, 240);
       const requestedClipStartSec = Math.max(0, Number(req.body?.clipStartSec || 0) || 0);
       const requestedClipDurationSec = Math.min(
-        30,
-        Math.max(0.5, Number(req.body?.clipDurationSec || 30) || 30)
+        STATUS_VIDEO_CLIP_MAX_SEC,
+        Math.max(0.5, Number(req.body?.clipDurationSec || STATUS_VIDEO_CLIP_MAX_SEC) || STATUS_VIDEO_CLIP_MAX_SEC)
       );
       if (!req.file && !rawText) {
         return res.status(400).json({ error: "File or text is required" });
@@ -830,11 +891,10 @@ app.post(
           return res.status(500).json({ error: "Cloudinary config missing" });
         }
 
-        mime = req.file.mimetype || "";
-        const isImage = mime.startsWith("image/");
-        const isVideo = mime.startsWith("video/");
+        mime = String(req.file.mimetype || "").toLowerCase();
+        const { isImage, isVideo } = classifyStatusFile(req.file);
         if (!isImage && !isVideo) {
-          return res.status(400).json({ error: "Only image or video allowed" });
+          return res.status(400).json({ error: "Unsupported status media type" });
         }
 
         uploadResult = await uploadBufferToCloudinary(req.file.buffer, {

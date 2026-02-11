@@ -17,13 +17,201 @@ const formatClipTime = (seconds) => {
   return `${mins}:${secs}`;
 };
 
+const STATUS_VIDEO_CLIP_MAX_SEC = 15;
+
 const isVideoFile = (file) => {
   if (!file) return false;
   const mime = String(file.type || "").toLowerCase();
   if (mime.startsWith("video/")) return true;
 
   const name = String(file.name || "").toLowerCase();
-  return /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpg|mpeg|ts)$/i.test(name);
+  return /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpg|mpeg|ts|mts|m2ts|ogv|ogg|wmv|flv|asf)$/i.test(name);
+};
+
+const isImageFile = (file) => {
+  if (!file) return false;
+  const mime = String(file.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+
+  const name = String(file.name || "").toLowerCase();
+  return /\.(jpg|jpeg|png|gif|bmp|webp|avif|heic|heif|tif|tiff|jxl)$/i.test(name);
+};
+
+const createStatusVideoClip = async ({ file, startSec, durationSec, onProgress }) => {
+  if (!file) {
+    throw new Error("No file selected");
+  }
+
+  const canRecordInBrowser =
+    typeof window !== "undefined" &&
+    typeof window.MediaRecorder !== "undefined" &&
+    typeof document !== "undefined";
+
+  if (!canRecordInBrowser) {
+    return {
+      file,
+      clipStartSec: startSec,
+      clipDurationSec: durationSec,
+      trimmed: false,
+    };
+  }
+
+  return new Promise((resolve) => {
+    const sourceUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = sourceUrl;
+
+    let stream = null;
+    let recorder = null;
+    let timeoutId = null;
+    let settled = false;
+    const chunks = [];
+
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(sourceUrl);
+      resolve(payload);
+    };
+
+    const fallback = (clipStartOverride, clipDurationOverride) =>
+      finish({
+        file,
+        clipStartSec: clipStartOverride,
+        clipDurationSec: clipDurationOverride,
+        trimmed: false,
+      });
+
+    video.onerror = () => fallback(startSec, durationSec);
+
+    video.onloadedmetadata = () => {
+      const totalDuration = Number(video.duration || 0);
+      const safeStart = Math.max(0, Math.min(Number(startSec || 0), Math.max(0, totalDuration - 0.5)));
+      const safeDuration =
+        totalDuration > 0
+          ? Math.max(0.5, Math.min(Number(durationSec || STATUS_VIDEO_CLIP_MAX_SEC), totalDuration - safeStart))
+          : Math.max(0.5, Number(durationSec || STATUS_VIDEO_CLIP_MAX_SEC));
+      const endSec = safeStart + safeDuration;
+
+      const captureStream = video.captureStream || video.mozCaptureStream;
+      if (!captureStream) {
+        return fallback(safeStart, safeDuration);
+      }
+
+      try {
+        stream = captureStream.call(video);
+      } catch {
+        return fallback(safeStart, safeDuration);
+      }
+
+      const supportedMimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ];
+      let selectedMimeType = "";
+      if (typeof window.MediaRecorder.isTypeSupported === "function") {
+        selectedMimeType = supportedMimeTypes.find((item) =>
+          window.MediaRecorder.isTypeSupported(item)
+        ) || "";
+      }
+
+      const recorderOptions = selectedMimeType
+        ? { mimeType: selectedMimeType, videoBitsPerSecond: 1_600_000 }
+        : { videoBitsPerSecond: 1_600_000 };
+
+      try {
+        recorder = new window.MediaRecorder(stream, recorderOptions);
+      } catch {
+        return fallback(safeStart, safeDuration);
+      }
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => fallback(safeStart, safeDuration);
+
+      recorder.onstop = () => {
+        if (!chunks.length) {
+          return fallback(safeStart, safeDuration);
+        }
+
+        const outputType = selectedMimeType || "video/webm";
+        const clippedBlob = new Blob(chunks, { type: outputType });
+        if (!clippedBlob.size) {
+          return fallback(safeStart, safeDuration);
+        }
+
+        const outputNameBase = String(file.name || "status-video").replace(/\.[^.]+$/, "");
+        const clippedFile = new File([clippedBlob], `${outputNameBase}-clip.webm`, {
+          type: outputType,
+        });
+
+        finish({
+          file: clippedFile,
+          clipStartSec: 0,
+          clipDurationSec: Math.min(STATUS_VIDEO_CLIP_MAX_SEC, safeDuration),
+          trimmed: true,
+        });
+      };
+
+      const stopCapture = () => {
+        if (recorder?.state && recorder.state !== "inactive") {
+          recorder.stop();
+        } else {
+          fallback(safeStart, safeDuration);
+        }
+      };
+
+      video.ontimeupdate = () => {
+        const current = Number(video.currentTime || safeStart);
+        if (typeof onProgress === "function" && safeDuration > 0) {
+          const progress = Math.min(100, Math.max(0, ((current - safeStart) / safeDuration) * 100));
+          onProgress(progress);
+        }
+        if (current >= endSec - 0.03) {
+          stopCapture();
+        }
+      };
+
+      video.onended = stopCapture;
+
+      video.onseeked = () => {
+        try {
+          recorder.start(250);
+        } catch {
+          return fallback(safeStart, safeDuration);
+        }
+
+        video.play().catch(() => {
+          stopCapture();
+        });
+      };
+
+      timeoutId = setTimeout(() => {
+        stopCapture();
+      }, Math.max(1_500, safeDuration * 1_000 + 1_500));
+
+      try {
+        video.currentTime = safeStart;
+      } catch {
+        fallback(safeStart, safeDuration);
+      }
+    };
+  });
 };
 
 function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
@@ -43,6 +231,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [statuses, setStatuses] = useState([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusUploading, setStatusUploading] = useState(false);
+  const [statusUploadHint, setStatusUploadHint] = useState("");
   const [statusError, setStatusError] = useState("");
   const [activeStatus, setActiveStatus] = useState(null);
   const [statusReply, setStatusReply] = useState("");
@@ -441,6 +630,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const openStatusVideoEditor = useCallback((file) => {
     if (!file) return;
     setStatusError("");
+    setStatusUploadHint("");
     setStatusVideoEditor({
       file,
       previewUrl: URL.createObjectURL(file),
@@ -452,6 +642,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   }, []);
 
   const closeStatusVideoEditor = useCallback(() => {
+    setStatusUploadHint("");
     setStatusVideoEditor(null);
   }, []);
 
@@ -476,10 +667,12 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
         fields,
       });
       await loadStatuses();
+      setStatusUploadHint("");
       return true;
     } catch (error) {
       console.error("status upload failed", error);
       setStatusError(error.message || "Status upload failed");
+      setStatusUploadHint("");
       return false;
     } finally {
       setStatusUploading(false);
@@ -490,17 +683,35 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     if (!statusVideoEditor?.file) return;
 
     const durationSec = Number(statusVideoEditor.durationSec) || 0;
-    const maxStartSec = Math.max(0, durationSec - 30);
+    const maxStartSec = Math.max(0, durationSec - STATUS_VIDEO_CLIP_MAX_SEC);
     const clipStartSec = Math.min(Math.max(Number(statusVideoEditor.startSec) || 0, 0), maxStartSec);
-    const clipDurationSec = Math.min(30, Math.max(0.5, durationSec - clipStartSec || 30));
+    const clipDurationSec = Math.min(
+      STATUS_VIDEO_CLIP_MAX_SEC,
+      Math.max(0.5, durationSec - clipStartSec || STATUS_VIDEO_CLIP_MAX_SEC)
+    );
 
-    const success = await handleStatusUpload(statusVideoEditor.file, {
+    setStatusError("");
+    setStatusUploadHint(`Preparing ${STATUS_VIDEO_CLIP_MAX_SEC}s clip...`);
+    const prepared = await createStatusVideoClip({
+      file: statusVideoEditor.file,
+      startSec: clipStartSec,
+      durationSec: clipDurationSec,
+      onProgress: (progress) => {
+        setStatusUploadHint(`Preparing clip ${Math.round(progress)}%`);
+      },
+    });
+
+    setStatusUploadHint(prepared.trimmed ? "Uploading trimmed clip..." : "Uploading status...");
+
+    const success = await handleStatusUpload(prepared.file, {
       text: statusVideoEditor.text || "",
-      clipStartSec,
-      clipDurationSec,
+      clipStartSec: prepared.clipStartSec,
+      clipDurationSec: prepared.clipDurationSec,
     });
     if (success) {
       closeStatusVideoEditor();
+    } else {
+      setStatusUploadHint("");
     }
   }, [closeStatusVideoEditor, handleStatusUpload, statusVideoEditor]);
 
@@ -508,6 +719,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     const text = window.prompt("Write your status") || "";
     if (!text.trim()) return;
     setStatusUploading(true);
+    setStatusUploadHint("Uploading status...");
     setStatusError("");
     try {
       await uploadRequest("/status/upload", {
@@ -520,6 +732,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       setStatusError(error.message || "Status upload failed");
     } finally {
       setStatusUploading(false);
+      setStatusUploadHint("");
     }
   };
 
@@ -824,6 +1037,11 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                     {statusError}
                   </div>
                 )}
+                {statusUploadHint && (
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {statusUploadHint}
+                  </div>
+                )}
 
                 <button
                   type="button"
@@ -967,15 +1185,17 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
               <input
                 ref={statusFileRef}
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,.heic,.heif,.ogv,.ogg,.webm,.mkv,.avi,.mov,.mp4,.m4v,.3gp,.wmv,.flv"
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) {
                     if (isVideoFile(file)) {
                       openStatusVideoEditor(file);
-                    } else {
+                    } else if (isImageFile(file)) {
                       handleStatusUpload(file);
+                    } else {
+                      openStatusVideoEditor(file);
                     }
                   }
                   event.target.value = "";
@@ -1080,7 +1300,10 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       {statusVideoEditor &&
         (() => {
           const durationSec = Number(statusVideoEditor.durationSec) || 0;
-          const clipWindowSec = Math.min(30, durationSec || 30);
+          const clipWindowSec = Math.min(
+            STATUS_VIDEO_CLIP_MAX_SEC,
+            durationSec || STATUS_VIDEO_CLIP_MAX_SEC
+          );
           const maxStartSec = Math.max(0, durationSec - clipWindowSec);
           const startSec = Math.min(
             Math.max(Number(statusVideoEditor.startSec) || 0, 0),
@@ -1094,7 +1317,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
             <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-0 sm:items-center sm:justify-center sm:p-6">
               <div className="w-full rounded-t-2xl border border-white/10 bg-[#111b21] p-4 text-white sm:max-w-xl sm:rounded-2xl">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-semibold">Trim status video (30s)</p>
+                  <p className="text-sm font-semibold">
+                    Trim status video ({STATUS_VIDEO_CLIP_MAX_SEC}s)
+                  </p>
                   <button
                     type="button"
                     onClick={closeStatusVideoEditor}
@@ -1194,7 +1419,9 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   disabled={statusUploading}
                   className="w-full rounded-xl bg-[#25d366] px-4 py-2 text-sm font-semibold text-[#073e2a] disabled:opacity-60"
                 >
-                  {statusUploading ? "Uploading..." : "Upload 30s status"}
+                  {statusUploading
+                    ? "Uploading..."
+                    : `Upload ${STATUS_VIDEO_CLIP_MAX_SEC}s status`}
                 </button>
               </div>
             </div>

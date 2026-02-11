@@ -6,6 +6,17 @@ import VideoCall from "../components/VideoCall";
 import { apiRequest, uploadRequest } from "../services/api";
 import { socket } from "../services/socket";
 
+const formatClipTime = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(safe / 60)
+    .toString()
+    .padStart(2, "0");
+  const secs = Math.floor(safe % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${mins}:${secs}`;
+};
+
 function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
@@ -29,6 +40,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const [statusReplyError, setStatusReplyError] = useState("");
   const [statusMenuOpenId, setStatusMenuOpenId] = useState(null);
   const [statusDeletingId, setStatusDeletingId] = useState(null);
+  const [statusVideoEditor, setStatusVideoEditor] = useState(null);
   const statusTimerRef = useRef(null);
   const statusProgressRef = useRef(null);
   const statusQueueRef = useRef([]);
@@ -46,6 +58,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   const selectedContactIdRef = useRef(selectedContactId);
   const contactsRef = useRef(contacts);
   const statusFileRef = useRef(null);
+  const statusTrimVideoRef = useRef(null);
 
   useEffect(() => {
     selectedContactIdRef.current = selectedContactId;
@@ -408,25 +421,112 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     }
   }, [authToken]);
 
-  const handleStatusUpload = async (file) => {
+  useEffect(() => {
+    return () => {
+      if (statusVideoEditor?.previewUrl) {
+        URL.revokeObjectURL(statusVideoEditor.previewUrl);
+      }
+    };
+  }, [statusVideoEditor?.previewUrl]);
+
+  useEffect(() => {
+    if (!statusVideoEditor?.previewUrl || !statusVideoEditor.loadingMeta) return;
+
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    probe.src = statusVideoEditor.previewUrl;
+    probe.onloadedmetadata = () => {
+      const durationSec = Number(probe.duration) || 0;
+      setStatusVideoEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              loadingMeta: false,
+              durationSec,
+              startSec: 0,
+            }
+          : prev
+      );
+      probe.src = "";
+    };
+    probe.onerror = () => {
+      setStatusError("Video read failed. Try another file.");
+      setStatusVideoEditor(null);
+      probe.src = "";
+    };
+
+    return () => {
+      probe.onloadedmetadata = null;
+      probe.onerror = null;
+      probe.src = "";
+    };
+  }, [statusVideoEditor?.previewUrl, statusVideoEditor?.loadingMeta]);
+
+  const openStatusVideoEditor = useCallback((file) => {
     if (!file) return;
+    setStatusError("");
+    setStatusVideoEditor({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      loadingMeta: true,
+      durationSec: 0,
+      startSec: 0,
+      text: "",
+    });
+  }, []);
+
+  const closeStatusVideoEditor = useCallback(() => {
+    setStatusVideoEditor(null);
+  }, []);
+
+  const handleStatusUpload = async (file, options = {}) => {
+    if (!file) return;
+
     setStatusUploading(true);
     setStatusError("");
     try {
-      const text = window.prompt("Status text (optional)") || "";
+      const text =
+        options.text !== undefined ? String(options.text || "") : window.prompt("Status text (optional)") || "";
+      const fields = { text };
+      if (typeof options.clipStartSec === "number") {
+        fields.clipStartSec = String(options.clipStartSec);
+      }
+      if (typeof options.clipDurationSec === "number") {
+        fields.clipDurationSec = String(options.clipDurationSec);
+      }
       await uploadRequest("/status/upload", {
         token: authToken,
         file,
-        fields: { text },
+        fields,
       });
       await loadStatuses();
+      return true;
     } catch (error) {
       console.error("status upload failed", error);
       setStatusError(error.message || "Status upload failed");
+      return false;
     } finally {
       setStatusUploading(false);
     }
   };
+
+  const handleStatusVideoTrimUpload = useCallback(async () => {
+    if (!statusVideoEditor?.file || statusVideoEditor.loadingMeta) return;
+
+    const durationSec = Number(statusVideoEditor.durationSec) || 0;
+    const maxStartSec = Math.max(0, durationSec - 30);
+    const clipStartSec = Math.min(Math.max(Number(statusVideoEditor.startSec) || 0, 0), maxStartSec);
+    const clipDurationSec = Math.min(30, Math.max(0.5, durationSec - clipStartSec || 30));
+
+    const success = await handleStatusUpload(statusVideoEditor.file, {
+      text: statusVideoEditor.text || "",
+      clipStartSec,
+      clipDurationSec,
+    });
+    if (success) {
+      closeStatusVideoEditor();
+    }
+  }, [closeStatusVideoEditor, handleStatusUpload, statusVideoEditor]);
 
   const handleTextStatus = async () => {
     const text = window.prompt("Write your status") || "";
@@ -895,7 +995,13 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
-                  if (file) handleStatusUpload(file);
+                  if (file) {
+                    if ((file.type || "").startsWith("video/")) {
+                      openStatusVideoEditor(file);
+                    } else {
+                      handleStatusUpload(file);
+                    }
+                  }
                   event.target.value = "";
                 }}
               />
@@ -994,6 +1100,113 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           </div>
         </div>
       )}
+
+      {statusVideoEditor &&
+        (() => {
+          const durationSec = Number(statusVideoEditor.durationSec) || 0;
+          const clipWindowSec = Math.min(30, durationSec || 30);
+          const maxStartSec = Math.max(0, durationSec - clipWindowSec);
+          const startSec = Math.min(
+            Math.max(Number(statusVideoEditor.startSec) || 0, 0),
+            maxStartSec
+          );
+          const endSec = Math.min(durationSec, startSec + clipWindowSec);
+          const startPercent = durationSec > 0 ? (startSec / durationSec) * 100 : 0;
+          const widthPercent = durationSec > 0 ? (clipWindowSec / durationSec) * 100 : 100;
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-0 sm:items-center sm:justify-center sm:p-6">
+              <div className="w-full rounded-t-2xl border border-white/10 bg-[#111b21] p-4 text-white sm:max-w-xl sm:rounded-2xl">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold">Trim status video (30s)</p>
+                  <button
+                    type="button"
+                    onClick={closeStatusVideoEditor}
+                    disabled={statusUploading}
+                    className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <video
+                  ref={statusTrimVideoRef}
+                  src={statusVideoEditor.previewUrl}
+                  controls
+                  className="mb-3 h-56 w-full rounded-xl bg-black object-contain"
+                  onLoadedMetadata={(event) => {
+                    if (!durationSec) {
+                      return;
+                    }
+                    const player = event.currentTarget;
+                    if (player.currentTime < startSec || player.currentTime > endSec) {
+                      player.currentTime = startSec;
+                    }
+                  }}
+                  onTimeUpdate={(event) => {
+                    const player = event.currentTarget;
+                    if (endSec > startSec && player.currentTime >= endSec) {
+                      player.currentTime = startSec;
+                      if (!player.paused) {
+                        player.play().catch(() => {});
+                      }
+                    }
+                  }}
+                />
+
+                <div className="mb-2 text-xs text-white/80">
+                  Clip: {formatClipTime(startSec)} - {formatClipTime(endSec)} ({Math.round(clipWindowSec)}s)
+                </div>
+                <div className="mb-2 relative h-2 w-full rounded-full bg-white/20">
+                  <div
+                    className="absolute inset-y-0 rounded-full bg-[#25d366]"
+                    style={{
+                      left: `${startPercent}%`,
+                      width: `${Math.max(3, Math.min(100 - startPercent, widthPercent))}%`,
+                    }}
+                  />
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={maxStartSec}
+                  step={0.1}
+                  value={startSec}
+                  onChange={(event) => {
+                    const nextStart = Number(event.target.value) || 0;
+                    setStatusVideoEditor((prev) => (prev ? { ...prev, startSec: nextStart } : prev));
+                    if (statusTrimVideoRef.current) {
+                      statusTrimVideoRef.current.currentTime = nextStart;
+                    }
+                  }}
+                  className="mb-3 w-full accent-[#25d366]"
+                  disabled={statusUploading || statusVideoEditor.loadingMeta || maxStartSec <= 0}
+                />
+
+                <input
+                  value={statusVideoEditor.text}
+                  onChange={(event) =>
+                    setStatusVideoEditor((prev) =>
+                      prev ? { ...prev, text: event.target.value.slice(0, 240) } : prev
+                    )
+                  }
+                  placeholder="Status text (optional)"
+                  className="mb-3 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                  disabled={statusUploading}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleStatusVideoTrimUpload}
+                  disabled={statusUploading || statusVideoEditor.loadingMeta}
+                  className="w-full rounded-xl bg-[#25d366] px-4 py-2 text-sm font-semibold text-[#073e2a] disabled:opacity-60"
+                >
+                  {statusUploading ? "Uploading..." : "Upload 30s status"}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       {activeStatus && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">

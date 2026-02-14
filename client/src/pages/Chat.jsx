@@ -442,6 +442,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
     const handleSessionReplaced = () => {
       onLogout();
     };
+    
 
     const handleMessageStatus = ({ clientId, messageId, status, deliveredAt }) => {
       setMessages((prev) =>

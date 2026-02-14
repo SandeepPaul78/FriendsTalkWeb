@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../services/socket";
-
-const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+import { ICE_SERVERS } from "../services/webrtc";
 
 const createCallId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {

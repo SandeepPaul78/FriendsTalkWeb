@@ -26,15 +26,15 @@ function MessageBubble({ message, isOwn }) {
   return (
     <div className={`mb-2 flex ${isOwn ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-3.5 py-2 shadow-sm sm:max-w-[72%] ${
+        className={`ft-message-bubble max-w-[85%] rounded-2xl px-3.5 py-2 shadow-sm sm:max-w-[72%] ${
           isOwn
-            ? "rounded-br-md bg-[#d9fdd3] text-[#1f2c34]"
-            : "rounded-bl-md bg-white text-[#111b21]"
+            ? "ft-message-own rounded-br-md"
+            : "ft-message-peer rounded-bl-md"
         }`}
       >
         {message.statusId && (
-          <div className="mb-2 rounded-xl border border-slate-200 bg-white/70 p-2 text-[11px] text-slate-600">
-            <p className="font-semibold text-slate-700">Status reply</p>
+          <div className="mb-2 rounded-xl border border-white/20 bg-white/10 p-2 text-[11px] opacity-85">
+            <p className="font-semibold">Status reply</p>
             {message.statusMediaType === "image" && message.statusMediaUrl && (
               <img
                 src={message.statusMediaUrl}
@@ -48,7 +48,7 @@ function MessageBubble({ message, isOwn }) {
               </div>
             )}
             {message.statusMediaType === "text" && message.statusText && (
-              <div className="mt-2 rounded-lg bg-slate-200 px-2 py-2 text-xs text-slate-700">
+              <div className="mt-2 rounded-lg bg-white/20 px-2 py-2 text-xs">
                 {message.statusText}
               </div>
             )}
@@ -84,7 +84,7 @@ function MessageBubble({ message, isOwn }) {
             href={message.mediaUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-1 block rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="mt-1 block rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"
           >
             {message.mediaName || "Document"}
             {message.mediaSize ? ` · ${formatBytes(message.mediaSize)}` : ""}

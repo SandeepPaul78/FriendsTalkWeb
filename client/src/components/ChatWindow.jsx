@@ -167,14 +167,14 @@ function ChatWindow({
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-x-hidden bg-[#0b141a] pb-16 md:pb-0">
-      <header className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
+    <section className="ft-chat-window flex min-h-0 flex-1 flex-col overflow-x-hidden pb-16 md:pb-0">
+      <header className="ft-topbar px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white/90 hover:bg-white/10 md:hidden"
+              className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full md:hidden"
               aria-label="Back"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
@@ -182,11 +182,11 @@ function ChatWindow({
               </svg>
             </button>
             <div className="min-w-0">
-              <h3 className="truncate font-display text-lg font-semibold text-white">
+              <h3 className="truncate font-display text-lg font-semibold">
                 {selectedContact?.displayName || selectedContact?.phoneNumber || "Select a contact"}
               </h3>
               {selectedContact?.displayName && (
-                <p className="text-xs text-white/70">{selectedContact.phoneNumber}</p>
+                <p className="text-xs opacity-80">{selectedContact.phoneNumber}</p>
               )}
             </div>
           </div>
@@ -197,7 +197,7 @@ function ChatWindow({
               <button
                 type="button"
                 onClick={() => setShowMenu((prev) => !prev)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white/90 hover:bg-white/10"
+                className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full"
                 aria-label="Menu"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
@@ -206,7 +206,7 @@ function ChatWindow({
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-[#1f2c34] bg-[#0b141a] p-1 text-xs text-white shadow-xl">
+                <div className="ft-popover absolute right-0 top-10 z-20 w-44 rounded-xl p-1 text-xs shadow-xl">
                   {selectedContact && (
                     <button
                       type="button"
@@ -278,10 +278,10 @@ function ChatWindow({
             style={wallpaper ? { backgroundImage: `url(${wallpaper})` } : undefined}
           >
             {messages.length === 0 && (
-              <div className="rounded-xl border border-white/50 bg-white/75 p-4 text-center text-sm text-slate-600">
-                No messages yet. Say hello to{" "}
-                {selectedContact.displayName || selectedContact.phoneNumber}.
-              </div>
+            <div className="ft-card p-4 text-center text-sm">
+              No messages yet. Say hello to{" "}
+              {selectedContact.displayName || selectedContact.phoneNumber}.
+            </div>
             )}
 
             {messages.map((msg, idx) => (
@@ -293,7 +293,7 @@ function ChatWindow({
             ))}
           </div>
 
-          <div className="border-t border-[#1f2c34] bg-[#f0f2f5] px-4 py-3 sm:px-6">
+          <div className="ft-input-wrap px-4 py-3 sm:px-6">
             {typingContactLabel && (
               <p className="mb-2 text-xs text-slate-600">{typingContactLabel} is typing...</p>
             )}
@@ -315,7 +315,7 @@ function ChatWindow({
                     setShowAttach(false);
                   }}
                   disabled={!selectedContact}
-                  className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+                  className="ft-circle-btn h-11 w-11 rounded-full text-sm font-semibold"
                 >
                   🙂
                 </button>
@@ -327,20 +327,20 @@ function ChatWindow({
                     setShowEmoji(false);
                   }}
                   disabled={!selectedContact}
-                  className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+                  className="ft-circle-btn h-11 w-11 rounded-full text-sm font-semibold"
                 >
                   +
                 </button>
 
                 {showEmoji && (
-                  <div className="absolute bottom-14 left-0 z-20 w-52 rounded-2xl border border-[#cfd4d7] bg-white p-2 shadow-lg">
+                  <div className="ft-popover absolute bottom-14 left-0 z-20 w-52 rounded-2xl p-2 shadow-lg">
                     <div className="grid grid-cols-5 gap-1">
                       {EMOJIS.map((emoji) => (
                         <button
                           key={emoji}
                           type="button"
                           onClick={() => handleEmojiPick(emoji)}
-                          className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+                          className="h-9 w-9 rounded-lg text-lg hover:bg-white/15"
                         >
                           {emoji}
                         </button>
@@ -350,7 +350,7 @@ function ChatWindow({
                 )}
 
                 {showAttach && (
-                  <div className="absolute bottom-14 left-0 z-20 w-56 rounded-2xl border border-[#cfd4d7] bg-white p-2 text-sm shadow-lg">
+                  <div className="ft-popover absolute bottom-14 left-0 z-20 w-56 rounded-2xl p-2 text-sm shadow-lg">
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
@@ -379,7 +379,7 @@ function ChatWindow({
               <textarea
                 rows={1}
                 disabled={!selectedContact}
-                className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-[#cfd4d7] bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[#25d366] disabled:cursor-not-allowed disabled:bg-slate-200"
+                className="ft-input max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-2xl px-3 py-2 text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-70"
                 placeholder={selectedContact ? "Type a message..." : "Select a contact first"}
                 value={draftMessage}
                 onChange={(e) => onDraftChange(e.target.value)}
@@ -394,7 +394,7 @@ function ChatWindow({
                 type="button"
                 onClick={openCamera}
                 disabled={!selectedContact}
-                className="h-11 w-11 rounded-full border border-[#cfd4d7] bg-white text-sm font-semibold text-[#111b21] hover:bg-slate-50"
+                className="ft-circle-btn h-11 w-11 rounded-full text-sm font-semibold"
               >
                 📷
               </button>
@@ -402,7 +402,7 @@ function ChatWindow({
                 type="button"
                 disabled={!selectedContact || !draftMessage.trim()}
                 onClick={onSendMessage}
-                className="h-11 rounded-2xl bg-[#25d366] px-4 text-sm font-semibold text-[#073e2a] transition hover:bg-[#1fc15c] disabled:cursor-not-allowed disabled:opacity-45"
+                className="ft-btn-primary h-11 rounded-2xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Send
               </button>
@@ -511,12 +511,12 @@ function ChatWindow({
 
       {showProfile && selectedContact && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
-          <div className="w-full max-w-sm rounded-2xl border border-[#1f2c34] bg-[#111b21] p-5 text-white">
+          <div className="ft-modal w-full max-w-sm rounded-2xl p-5">
             <h3 className="font-display text-lg font-semibold">Contact info</h3>
             <p className="mt-2 text-sm">
               {selectedContact.displayName || "Unknown"}
             </p>
-            <p className="text-xs text-white/70">{selectedContact.phoneNumber}</p>
+            <p className="text-xs opacity-75">{selectedContact.phoneNumber}</p>
             {!selectedContact.isSaved && (
               <p className="mt-2 text-xs text-amber-300">Unsaved contact</p>
             )}
@@ -524,7 +524,7 @@ function ChatWindow({
               <button
                 type="button"
                 onClick={() => setShowProfile(false)}
-                className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white/90 hover:bg-white/10"
+                className="ft-btn-soft rounded-full px-4 py-2 text-xs font-semibold"
               >
                 Close
               </button>

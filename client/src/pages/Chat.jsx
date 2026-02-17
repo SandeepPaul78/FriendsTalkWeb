@@ -214,7 +214,7 @@ const createStatusVideoClip = async ({ file, startSec, durationSec, onProgress }
   });
 };
 
-function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
+function Chat({ authToken, currentUser, onlineUserIds, onLogout, themeMode, onThemeToggle }) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedContactId, setSelectedContactId] = useState(null);
@@ -950,8 +950,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-[#0b141a] sm:px-5 sm:py-6">
-      <div className="mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-[#111b21] sm:h-[calc(100dvh-3rem)] sm:rounded-2xl sm:border sm:border-[#1f2c34] sm:shadow-[0_30px_60px_-35px_rgba(0,0,0,0.7)] md:flex-row">
+    <div className={`ft-theme ft-theme-${themeMode} ft-page-bg min-h-[100dvh] sm:px-5 sm:py-6`}>
+      <div className="ft-shell mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden sm:h-[calc(100dvh-3rem)] sm:rounded-2xl md:flex-row">
         <Sidebar
           currentUser={currentUser}
           contacts={contacts}
@@ -969,6 +969,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           addingContact={addingContact}
           addContactError={addContactError}
           onLogout={onLogout}
+          themeMode={themeMode}
+          onThemeToggle={onThemeToggle}
         />
 
         <div className="flex min-h-0 flex-1">
@@ -998,13 +1000,13 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           )}
 
           {activeTab === "status" && (
-            <div className="flex min-h-0 flex-1 flex-col bg-[#0b141a] pb-16 text-white md:pb-0">
-              <div className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
+            <div className="ft-chat-surface flex min-h-0 flex-1 flex-col pb-16 md:pb-0">
+              <div className="ft-topbar px-4 py-3 sm:px-6">
                 <h3 className="font-display text-lg font-semibold">Status</h3>
-                <p className="text-xs text-white/70">Share a photo or video update</p>
+                <p className="text-xs opacity-80">Share a photo or video update</p>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                <div className="ft-card p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold">My Status</p>
@@ -1017,7 +1019,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                         type="button"
                         onClick={handleTextStatus}
                         disabled={statusUploading}
-                        className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:bg-white/10 disabled:opacity-60"
+                        className="ft-btn-soft rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-60"
                       >
                         Text
                       </button>
@@ -1025,7 +1027,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                         type="button"
                         onClick={() => statusFileRef.current?.click()}
                         disabled={statusUploading}
-                        className="rounded-full bg-[#25d366] px-3 py-1 text-xs font-semibold text-[#073e2a] hover:bg-[#1fc15c] disabled:opacity-60"
+                        className="ft-btn-primary rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-60"
                       >
                         {statusUploading ? "Uploading..." : "Media"}
                       </button>
@@ -1047,7 +1049,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 <button
                   type="button"
                   onClick={loadStatuses}
-                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10"
+                  className="ft-btn-soft self-start rounded-full px-3 py-1 text-[11px] font-semibold"
                 >
                   Refresh
                 </button>
@@ -1057,7 +1059,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 )}
 
                 {!statusLoading && statuses.length === 0 && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-white/60">
+                  <div className="ft-card px-4 py-6 text-center text-sm opacity-75">
                     No status yet.
                   </div>
                 )}
@@ -1085,7 +1087,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   const renderRow = (status) => (
                     <div
                       key={status.id}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+                      className="ft-card flex w-full items-center justify-between gap-3 px-3 py-2"
                     >
                       <button
                         type="button"
@@ -1135,7 +1137,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                             onClick={() =>
                               setStatusMenuOpenId((prev) => (prev === status.id ? null : status.id))
                             }
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10"
+                            className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full"
                             aria-label="Status options"
                           >
                             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
@@ -1144,7 +1146,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                           </button>
 
                           {statusMenuOpenId === status.id && (
-                            <div className="absolute right-0 top-9 z-20 w-32 rounded-lg border border-white/20 bg-[#111b21] p-1 shadow-xl">
+                            <div className="ft-popover absolute right-0 top-9 z-20 w-32 rounded-lg p-1 shadow-xl">
                               <button
                                 type="button"
                                 onClick={() => handleDeleteStatus(status.id)}
@@ -1206,16 +1208,16 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
           )}
 
           {activeTab === "calls" && (
-            <div className="flex min-h-0 flex-1 flex-col bg-[#0b141a] pb-16 text-white md:pb-0">
-              <div className="border-b border-[#1f2c34] bg-[#005c4b] px-4 py-3 sm:px-6">
+            <div className="ft-chat-surface flex min-h-0 flex-1 flex-col pb-16 md:pb-0">
+              <div className="ft-topbar px-4 py-3 sm:px-6">
                 <h3 className="font-display text-lg font-semibold">Calls</h3>
-                <p className="text-xs text-white/70">Audio & video call history</p>
+                <p className="text-xs opacity-80">Audio & video call history</p>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
                 <button
                   type="button"
                   onClick={loadCallHistory}
-                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10"
+                  className="ft-btn-soft self-start rounded-full px-3 py-1 text-[11px] font-semibold"
                 >
                   Refresh
                 </button>
@@ -1225,7 +1227,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 )}
 
                 {!callHistoryLoading && callHistory.length === 0 && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-white/60">
+                  <div className="ft-card px-4 py-6 text-center text-sm opacity-75">
                     No calls yet.
                   </div>
                 )}
@@ -1234,7 +1236,7 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                   {callHistory.map((call) => (
                     <div
                       key={call.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                      className="ft-card flex items-center justify-between gap-3 px-4 py-3"
                     >
                       <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
@@ -1252,14 +1254,14 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                         <button
                           type="button"
                           onClick={() => triggerAutoCall(call.peerId, "audio")}
-                          className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 hover:bg-white/10"
+                          className="ft-btn-soft rounded-full px-3 py-1 text-[11px] font-semibold"
                         >
                           Audio
                         </button>
                         <button
                           type="button"
                           onClick={() => triggerAutoCall(call.peerId, "video")}
-                          className="rounded-full border border-white/30 px-3 py-1 text-[11px] font-semibold text-white/90 hover:bg-white/10"
+                          className="ft-btn-soft rounded-full px-3 py-1 text-[11px] font-semibold"
                         >
                           Video
                         </button>
@@ -1274,8 +1276,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
       </div>
 
       {!isChatOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#1f2c34] bg-[#111b21] md:hidden">
-          <div className="mx-auto flex max-w-6xl items-center justify-around px-4 py-2 text-xs text-white/70">
+        <div className="ft-mobile-tabs fixed bottom-0 left-0 right-0 z-40 md:hidden">
+          <div className="mx-auto flex max-w-6xl items-center justify-around px-4 py-2 text-xs">
             {[
               { key: "chats", label: "Chats" },
               { key: "status", label: "Status" },
@@ -1285,10 +1287,10 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout }) {
                 key={tab.key}
                 type="button"
                 onClick={() => handleTabChange(tab.key)}
-                className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
                   activeTab === tab.key
-                    ? "bg-[#25d366] text-[#073e2a]"
-                    : "text-white/70"
+                    ? "ft-btn-primary"
+                    : "ft-btn-soft"
                 }`}
               >
                 {tab.label}

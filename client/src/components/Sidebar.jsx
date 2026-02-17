@@ -17,6 +17,8 @@ function Sidebar({
   addingContact,
   addContactError,
   onLogout,
+  themeMode,
+  onThemeToggle,
 }) {
   const [newContactPhone, setNewContactPhone] = useState("");
   const [newContactName, setNewContactName] = useState("");
@@ -68,31 +70,48 @@ function Sidebar({
 
   return (
     <aside
-      className={`flex min-h-0 w-full flex-col border-b border-[#1f2c34] bg-[#111b21] md:w-96 md:border-b-0 md:border-r ${
+      className={`ft-sidebar flex min-h-0 w-full flex-col md:w-96 ${
         isChatOpen ? "hidden md:flex" : "flex"
       }`}
     >
-      <div className="bg-[#005c4b] px-4 py-3 text-white">
+      <div className="ft-topbar px-4 py-3">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold">FriendsTalk</h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={onThemeToggle}
+              className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full"
+              aria-label="Toggle theme"
+              title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {themeMode === "dark" ? (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <path d="M6.8 4.6 5.4 3.2 4 4.6 5.4 6l1.4-1.4zm10.4 0L18.6 6 20 4.6l-1.4-1.4-1.4 1.4zM12 5a1 1 0 0 0 1-1V2h-2v2a1 1 0 0 0 1 1zm7 8a1 1 0 0 0 1-1h2v-2h-2a1 1 0 0 0-1 1v2zM4 12a1 1 0 0 0-1-1H1v2h2a1 1 0 0 0 1-1zm1.4 6L4 19.4l1.4 1.4L6.8 19 5.4 18zm13.2 0-1.4 1.4 1.4 1.4 1.4-1.4-1.4-1.4zM12 19a1 1 0 0 0-1 1v2h2v-2a1 1 0 0 0-1-1zm0-11a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <path d="M20.7 13.4A8.5 8.5 0 0 1 10.6 3.3a.7.7 0 0 0-.9-.8A10 10 0 1 0 21.5 14a.7.7 0 0 0-.8-.6z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
               onClick={() => setIsAddOpen(true)}
-              className="h-8 rounded-full bg-white/15 px-3 text-[11px] font-semibold text-white hover:bg-white/20"
+              className="ft-btn-soft h-8 rounded-full px-3 text-[11px] font-semibold"
             >
               New
             </button>
             <button
               type="button"
               onClick={onLogout}
-              className="h-8 rounded-full border border-white/30 px-3 text-[11px] font-semibold text-white/90 hover:bg-white/10"
+              className="ft-btn-soft h-8 rounded-full px-3 text-[11px] font-semibold"
             >
               Logout
             </button>
           </div>
         </div>
-        <p className="mt-1 text-[11px] text-white/70">{currentUser.phoneNumber}</p>
+        <p className="mt-1 text-[11px] opacity-80">{currentUser.phoneNumber}</p>
 
         {(totalUnread > 0 || totalMissed > 0) && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
@@ -125,10 +144,10 @@ function Sidebar({
               key={tab.key}
               type="button"
               onClick={() => onTabChange?.(tab.key)}
-              className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
                 activeTab === tab.key
-                  ? "bg-[#25d366] text-[#073e2a]"
-                  : "bg-white/10 text-white/80 hover:bg-white/20"
+                  ? "ft-btn-primary"
+                  : "ft-btn-soft"
               }`}
             >
               {tab.label}
@@ -192,8 +211,8 @@ function Sidebar({
               }}
               className={`w-full rounded-xl px-3 py-2 text-left transition ${
                 isSelected
-                  ? "bg-[#202c33] text-white"
-                  : "bg-[#111b21] text-white/80 hover:bg-[#1f2c34]"
+                  ? "ft-contact-row-active"
+                  : "ft-contact-row"
               } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
             >
               <span className="flex items-center justify-between gap-2">
@@ -238,21 +257,21 @@ function Sidebar({
         })}
       </div>
 
-      <div className="border-t border-[#1f2c34] px-4 py-2 text-[10px] uppercase tracking-[0.16em] text-white/40">
+      <div className="ft-divider px-4 py-2 text-[10px] uppercase tracking-[0.16em] opacity-60">
         Long press to delete
       </div>
 
       {isAddOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-6">
-          <div className="w-full max-w-sm rounded-2xl border border-[#1f2c34] bg-[#111b21] p-5 text-white">
+          <div className="ft-modal w-full max-w-sm rounded-2xl p-5">
             <h3 className="font-display text-lg font-semibold">New contact</h3>
-            <p className="mt-1 text-xs text-white/60">
+            <p className="mt-1 text-xs opacity-75">
               Add contact by phone number
             </p>
 
             <div className="mt-4 space-y-2">
               <input
-                className="h-10 w-full rounded-lg border border-[#33424a] bg-[#0b141a] px-3 text-xs text-white outline-none placeholder:text-white/50 focus:border-[#25d366]"
+                className="ft-input h-10 w-full rounded-lg px-3 text-xs outline-none placeholder:opacity-60"
                 placeholder="Contact name (optional)"
                 value={newContactName}
                 onChange={(event) => setNewContactName(event.target.value)}
@@ -265,7 +284,7 @@ function Sidebar({
               />
 
               <input
-                className="h-10 w-full rounded-lg border border-[#33424a] bg-[#0b141a] px-3 text-xs text-white outline-none placeholder:text-white/50 focus:border-[#25d366]"
+                className="ft-input h-10 w-full rounded-lg px-3 text-xs outline-none placeholder:opacity-60"
                 placeholder="Add contact: +91xxxxxxxxxx"
                 value={newContactPhone}
                 onChange={(event) => setNewContactPhone(event.target.value)}
@@ -286,7 +305,7 @@ function Sidebar({
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white/90 hover:bg-white/10"
+                className="ft-btn-soft rounded-full px-4 py-2 text-xs font-semibold"
               >
                 Cancel
               </button>
@@ -294,7 +313,7 @@ function Sidebar({
                 type="button"
                 onClick={handleAddContact}
                 disabled={addingContact || !newContactPhone.trim()}
-                className="rounded-full bg-[#25d366] px-4 py-2 text-xs font-semibold text-[#073e2a] hover:bg-[#1fc15c] disabled:cursor-not-allowed disabled:opacity-50"
+                className="ft-btn-primary rounded-full px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {addingContact ? "Saving..." : "Save"}
               </button>

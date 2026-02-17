@@ -4,11 +4,21 @@ import Login from "./pages/Login";
 import { apiRequest, clearStoredAuth, getStoredAuth, storeAuth } from "./services/api";
 import { connectSocket, disconnectSocket, socket } from "./services/socket";
 
+const THEME_STORAGE_KEY = "friendstalk_theme_mode";
+
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return "dark";
+  const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  if (storedTheme === "dark" || storedTheme === "light") return storedTheme;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+};
+
 function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authToken, setAuthToken] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [onlineUserIds, setOnlineUserIds] = useState([]);
+  const [themeMode, setThemeMode] = useState(getInitialTheme);
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -35,6 +45,11 @@ function App() {
 
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", themeMode);
+    localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     if (!authToken || !currentUser?.id) return;
@@ -66,6 +81,10 @@ function App() {
     setOnlineUserIds([]);
   }, []);
 
+  const handleThemeToggle = useCallback(() => {
+    setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -86,6 +105,8 @@ function App() {
       currentUser={currentUser}
       onlineUserIds={onlineUserIds}
       onLogout={handleLogout}
+      themeMode={themeMode}
+      onThemeToggle={handleThemeToggle}
     />
   );
 }

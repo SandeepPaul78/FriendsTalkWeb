@@ -548,7 +548,7 @@ function AudioCall({
           onClick={startCall}
           disabled={!selectedUser}
           aria-label="Start audio call"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
             <path d="M6.6 10.2c1.3 2.5 3.4 4.6 5.9 5.9l2-2c.2-.2.6-.3.9-.2 1 .3 2.1.5 3.2.5.5 0 .9.4.9.9V19c0 .5-.4.9-.9.9C11 19.9 4.1 13 4.1 4.9c0-.5.4-.9.9-.9h2.7c.5 0 .9.4.9.9 0 1.1.2 2.2.5 3.2.1.3 0 .6-.2.9l-2 2z" />
@@ -558,7 +558,7 @@ function AudioCall({
 
       {showOverlay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b141a]/95 px-6">
-          <div className="w-full max-w-sm rounded-3xl border border-[#1f2c34] bg-[#111b21] p-6 text-center text-white shadow-2xl">
+          <div className="ft-modal w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl">
             <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
               Audio Call
             </p>
@@ -575,7 +575,7 @@ function AudioCall({
                 <>
                   <button
                     onClick={acceptCall}
-                    className="h-12 rounded-full bg-[#25d366] px-5 text-sm font-semibold text-[#073e2a] hover:bg-[#1fc15c]"
+                    className="ft-btn-primary h-12 rounded-full px-5 text-sm font-semibold"
                   >
                     Accept
                   </button>

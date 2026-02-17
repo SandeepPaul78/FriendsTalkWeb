@@ -640,7 +640,7 @@ function VideoCall({
           onClick={startCall}
           disabled={!selectedUser}
           aria-label="Start video call"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ft-btn-soft flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
             <path d="M15 8.5V7c0-1.1-.9-2-2-2H5C3.9 5 3 5.9 3 7v10c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-1.5l5 2.5V6l-5 2.5z" />
@@ -701,7 +701,7 @@ function VideoCall({
                 <>
                   <button
                     onClick={acceptCall}
-                    className="h-12 rounded-full bg-[#25d366] px-5 text-sm font-semibold text-[#073e2a] hover:bg-[#1fc15c]"
+                    className="ft-btn-primary h-12 rounded-full px-5 text-sm font-semibold"
                   >
                     Accept
                   </button>

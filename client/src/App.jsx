@@ -5,6 +5,7 @@ import { apiRequest, clearStoredAuth, getStoredAuth, storeAuth } from "./service
 import { connectSocket, disconnectSocket, socket } from "./services/socket";
 
 const THEME_STORAGE_KEY = "friendstalk_theme_mode";
+const THEME_VARIANT_STORAGE_KEY = "friendstalk_theme_variant";
 
 const getInitialTheme = () => {
   if (typeof window === "undefined") return "dark";
@@ -13,12 +14,20 @@ const getInitialTheme = () => {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
+const getInitialThemeVariant = () => {
+  if (typeof window === "undefined") return "neon";
+  const storedVariant = localStorage.getItem(THEME_VARIANT_STORAGE_KEY);
+  const valid = new Set(["neon", "gold", "corporate"]);
+  return valid.has(storedVariant) ? storedVariant : "neon";
+};
+
 function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authToken, setAuthToken] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [onlineUserIds, setOnlineUserIds] = useState([]);
   const [themeMode, setThemeMode] = useState(getInitialTheme);
+  const [themeVariant, setThemeVariant] = useState(getInitialThemeVariant);
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -50,6 +59,11 @@ function App() {
     document.documentElement.setAttribute("data-theme", themeMode);
     localStorage.setItem(THEME_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme-accent", themeVariant);
+    localStorage.setItem(THEME_VARIANT_STORAGE_KEY, themeVariant);
+  }, [themeVariant]);
 
   useEffect(() => {
     if (!authToken || !currentUser?.id) return;
@@ -85,6 +99,11 @@ function App() {
     setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
+  const handleThemeVariantChange = useCallback((variant) => {
+    if (!variant) return;
+    setThemeVariant(variant);
+  }, []);
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -107,6 +126,8 @@ function App() {
       onLogout={handleLogout}
       themeMode={themeMode}
       onThemeToggle={handleThemeToggle}
+      themeVariant={themeVariant}
+      onThemeVariantChange={handleThemeVariantChange}
     />
   );
 }

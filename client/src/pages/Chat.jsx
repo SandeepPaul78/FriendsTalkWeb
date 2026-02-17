@@ -214,7 +214,16 @@ const createStatusVideoClip = async ({ file, startSec, durationSec, onProgress }
   });
 };
 
-function Chat({ authToken, currentUser, onlineUserIds, onLogout, themeMode, onThemeToggle }) {
+function Chat({
+  authToken,
+  currentUser,
+  onlineUserIds,
+  onLogout,
+  themeMode,
+  onThemeToggle,
+  themeVariant,
+  onThemeVariantChange,
+}) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedContactId, setSelectedContactId] = useState(null);
@@ -971,6 +980,8 @@ function Chat({ authToken, currentUser, onlineUserIds, onLogout, themeMode, onTh
           onLogout={onLogout}
           themeMode={themeMode}
           onThemeToggle={onThemeToggle}
+          themeVariant={themeVariant}
+          onThemeVariantChange={onThemeVariantChange}
         />
 
         <div className="flex min-h-0 flex-1">

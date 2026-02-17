@@ -19,6 +19,8 @@ function Sidebar({
   onLogout,
   themeMode,
   onThemeToggle,
+  themeVariant,
+  onThemeVariantChange,
 }) {
   const [newContactPhone, setNewContactPhone] = useState("");
   const [newContactName, setNewContactName] = useState("");
@@ -151,6 +153,25 @@ function Sidebar({
               }`}
             >
               {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          {[
+            { key: "neon", label: "Neon" },
+            { key: "gold", label: "Gold" },
+            { key: "corporate", label: "Corp" },
+          ].map((variant) => (
+            <button
+              key={variant.key}
+              type="button"
+              onClick={() => onThemeVariantChange?.(variant.key)}
+              className={`ft-variant-chip ${
+                themeVariant === variant.key ? "ft-variant-chip-active" : ""
+              }`}
+            >
+              {variant.label}
             </button>
           ))}
         </div>

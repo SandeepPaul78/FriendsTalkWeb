@@ -7,75 +7,85 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --ft-bg-start: #020202;
-    --ft-bg-mid: #020202;
-    --ft-bg-end: #020202;
-    --ft-shell-bg: #020202;
-    --ft-shell-border: rgba(255, 255, 255, 0.18);
-    --ft-surface: #020202;
-    --ft-surface-strong: #020202;
-    --ft-topbar-start: #020202;
-    --ft-topbar-end: #020202;
-    --ft-topbar-text: #ffffff;
-    --ft-card-bg: #020202;
-    --ft-card-border: rgba(255, 255, 255, 0.18);
-    --ft-text-primary: #ffffff;
-    --ft-text-secondary: rgba(255, 255, 255, 0.72);
-    --ft-input-bg: #101010;
-    --ft-input-border: rgba(255, 255, 255, 0.26);
-    --ft-input-focus: rgba(255, 255, 255, 0.56);
-    --ft-button-soft-bg: #111111;
-    --ft-button-soft-hover: #1a1a1a;
-    --ft-button-primary-bg: #ffffff;
-    --ft-button-primary-hover: #e9e9e9;
-    --ft-button-primary-border: #ffffff;
-    --ft-button-primary-text: #0a0a0a;
-    --ft-message-own: #ffffff;
-    --ft-message-own-text: #0a0a0a;
-    --ft-message-peer: #101010;
-    --ft-message-peer-text: #ffffff;
-    --ft-chat-base: #020202;
-    --ft-active-row: #ffffff;
-    --ft-active-row-border: #ffffff;
-    --ft-contact-hover: #141414;
-    --ft-contact-hover-text: #ffffff;
+    --ft-bg-start: #0b141a;
+    --ft-bg-mid: #0b141a;
+    --ft-bg-end: #0b141a;
+    --ft-shell-bg: #111b21;
+    --ft-shell-border: #2a3942;
+    --ft-surface: #111b21;
+    --ft-surface-strong: #111b21;
+    --ft-topbar-start: #202c33;
+    --ft-topbar-end: #202c33;
+    --ft-topbar-text: #e9edef;
+    --ft-card-bg: #111b21;
+    --ft-card-border: #2a3942;
+    --ft-text-primary: #e9edef;
+    --ft-text-secondary: #8696a0;
+    --ft-input-bg: #202c33;
+    --ft-input-border: #2a3942;
+    --ft-input-focus: #00a884;
+    --ft-input-focus-ring: rgba(0, 168, 132, 0.25);
+    --ft-button-soft-bg: #202c33;
+    --ft-button-soft-hover: #2a3942;
+    --ft-button-primary-bg: #00a884;
+    --ft-button-primary-hover: #06bf95;
+    --ft-button-primary-border: #00a884;
+    --ft-button-primary-text: #0b141a;
+    --ft-message-own: #005c4b;
+    --ft-message-own-text: #e9edef;
+    --ft-message-peer: #202c33;
+    --ft-message-peer-text: #e9edef;
+    --ft-message-border: #2a3942;
+    --ft-chat-base: #0b141a;
+    --ft-chat-pattern:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    --ft-active-row: #2a3942;
+    --ft-active-row-border: #3b4a54;
+    --ft-contact-hover: #1f2c34;
+    --ft-contact-hover-text: #e9edef;
     --ft-glow-accent: none;
   }
 
   [data-theme="light"] {
     color-scheme: light;
-    --ft-bg-start: #ffffff;
-    --ft-bg-mid: #ffffff;
-    --ft-bg-end: #ffffff;
+    --ft-bg-start: #efeae2;
+    --ft-bg-mid: #efeae2;
+    --ft-bg-end: #efeae2;
     --ft-shell-bg: #ffffff;
-    --ft-shell-border: rgba(0, 0, 0, 0.16);
+    --ft-shell-border: #d1d7db;
     --ft-surface: #ffffff;
-    --ft-surface-strong: #ffffff;
-    --ft-topbar-start: #ffffff;
-    --ft-topbar-end: #ffffff;
-    --ft-topbar-text: #090909;
+    --ft-surface-strong: #f7f8fa;
+    --ft-topbar-start: #008069;
+    --ft-topbar-end: #008069;
+    --ft-topbar-text: #ffffff;
     --ft-card-bg: #ffffff;
-    --ft-card-border: rgba(0, 0, 0, 0.14);
-    --ft-text-primary: #090909;
-    --ft-text-secondary: rgba(9, 9, 9, 0.7);
+    --ft-card-border: #e2e7ea;
+    --ft-text-primary: #111b21;
+    --ft-text-secondary: #667781;
     --ft-input-bg: #ffffff;
-    --ft-input-border: rgba(0, 0, 0, 0.24);
-    --ft-input-focus: rgba(0, 0, 0, 0.45);
-    --ft-button-soft-bg: #f2f2f2;
-    --ft-button-soft-hover: #e7e7e7;
-    --ft-button-primary-bg: #090909;
-    --ft-button-primary-hover: #1a1a1a;
-    --ft-button-primary-border: #090909;
+    --ft-input-border: #d1d7db;
+    --ft-input-focus: #00a884;
+    --ft-input-focus-ring: rgba(0, 168, 132, 0.18);
+    --ft-button-soft-bg: #f0f2f5;
+    --ft-button-soft-hover: #e9edef;
+    --ft-button-primary-bg: #00a884;
+    --ft-button-primary-hover: #019c7a;
+    --ft-button-primary-border: #00a884;
     --ft-button-primary-text: #ffffff;
-    --ft-message-own: #090909;
-    --ft-message-own-text: #ffffff;
-    --ft-message-peer: #f2f2f2;
-    --ft-message-peer-text: #090909;
-    --ft-chat-base: #ffffff;
-    --ft-active-row: #090909;
-    --ft-active-row-border: #090909;
-    --ft-contact-hover: #f3f3f3;
-    --ft-contact-hover-text: #090909;
+    --ft-message-own: #d9fdd3;
+    --ft-message-own-text: #111b21;
+    --ft-message-peer: #ffffff;
+    --ft-message-peer-text: #111b21;
+    --ft-message-border: #e6eaed;
+    --ft-chat-base: #efeae2;
+    --ft-chat-pattern:
+      linear-gradient(rgba(17, 27, 33, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(17, 27, 33, 0.04) 1px, transparent 1px);
+    --ft-active-row: #e9edef;
+    --ft-active-row-border: #d5dce0;
+    --ft-contact-hover: #f6f7f8;
+    --ft-contact-hover-text: #111b21;
     --ft-glow-accent: none;
   }
 
@@ -217,7 +227,7 @@
 
   .ft-input:focus {
     border-color: var(--ft-input-focus);
-    box-shadow: 0 0 0 3px rgba(137, 180, 255, 0.18);
+    box-shadow: 0 0 0 3px var(--ft-input-focus-ring);
   }
 
   .ft-circle-btn {
@@ -237,7 +247,7 @@
   }
 
   .ft-message-bubble {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--ft-message-border);
   }
 
   .ft-message-own {
@@ -254,7 +264,7 @@
 @layer utilities {
   .chat-wallpaper {
     background-color: var(--ft-chat-base);
-    background-image: none;
-    background-size: cover;
+    background-image: var(--ft-chat-pattern);
+    background-size: 26px 26px;
   }
 }

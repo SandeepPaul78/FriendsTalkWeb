@@ -7,102 +7,68 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --ft-bg-start: #030712;
-    --ft-bg-mid: #111827;
-    --ft-bg-end: #0f172a;
-    --ft-shell-bg: rgba(5, 10, 24, 0.78);
+    --ft-bg-start: #020202;
+    --ft-bg-mid: #0b0b0b;
+    --ft-bg-end: #17130f;
+    --ft-shell-bg: rgba(9, 9, 9, 0.78);
     --ft-shell-border: rgba(255, 255, 255, 0.12);
-    --ft-surface: rgba(14, 26, 44, 0.72);
-    --ft-surface-strong: rgba(8, 20, 38, 0.84);
-    --ft-topbar-start: #284873;
-    --ft-topbar-end: #5c2e70;
-    --ft-card-bg: rgba(255, 255, 255, 0.05);
+    --ft-surface: rgba(21, 20, 18, 0.74);
+    --ft-surface-strong: rgba(12, 11, 10, 0.88);
+    --ft-topbar-start: #11100e;
+    --ft-topbar-end: #3a2e1f;
+    --ft-card-bg: rgba(255, 255, 255, 0.06);
     --ft-card-border: rgba(255, 255, 255, 0.12);
-    --ft-text-primary: #f4f7ff;
-    --ft-text-secondary: rgba(244, 247, 255, 0.76);
+    --ft-text-primary: #f7f1e6;
+    --ft-text-secondary: rgba(247, 241, 230, 0.74);
     --ft-input-bg: rgba(255, 255, 255, 0.08);
     --ft-input-border: rgba(255, 255, 255, 0.18);
-    --ft-input-focus: rgba(134, 239, 172, 0.65);
+    --ft-input-focus: rgba(244, 195, 122, 0.56);
     --ft-button-soft-bg: rgba(255, 255, 255, 0.1);
     --ft-button-soft-hover: rgba(255, 255, 255, 0.18);
-    --ft-button-primary-text: #062b1d;
-    --ft-message-own: linear-gradient(160deg, #9df7cf 0%, #7ee8b4 55%, #5fd9a0 100%);
-    --ft-message-own-text: #0b1e15;
+    --ft-button-primary-text: #20160a;
+    --ft-message-own: linear-gradient(160deg, #f9e4bc 0%, #efcb92 54%, #e1ad67 100%);
+    --ft-message-own-text: #2d1f0e;
     --ft-message-peer: rgba(255, 255, 255, 0.1);
-    --ft-message-peer-text: #f4f7ff;
-    --ft-chat-base: #0f1f31;
-    --ft-glow-accent: radial-gradient(circle at 12% 14%, rgba(61, 243, 168, 0.22) 0%, transparent 42%),
-      radial-gradient(circle at 86% 16%, rgba(99, 102, 241, 0.2) 0%, transparent 46%),
-      radial-gradient(circle at 50% 90%, rgba(236, 72, 153, 0.16) 0%, transparent 44%);
+    --ft-message-peer-text: #f7f1e6;
+    --ft-chat-base: #0c0b0a;
+    --ft-active-row: linear-gradient(130deg, rgba(247, 211, 159, 0.18), rgba(174, 134, 84, 0.22));
+    --ft-active-row-border: rgba(255, 226, 183, 0.26);
+    --ft-glow-accent: radial-gradient(circle at 12% 12%, rgba(244, 195, 122, 0.22) 0%, transparent 42%),
+      radial-gradient(circle at 86% 18%, rgba(146, 110, 72, 0.18) 0%, transparent 46%),
+      radial-gradient(circle at 48% 92%, rgba(255, 238, 208, 0.1) 0%, transparent 45%);
   }
 
   [data-theme="light"] {
     color-scheme: light;
-    --ft-bg-start: #eef4ff;
-    --ft-bg-mid: #f8fbff;
-    --ft-bg-end: #e7f2f3;
-    --ft-shell-bg: rgba(255, 255, 255, 0.82);
-    --ft-shell-border: rgba(38, 60, 88, 0.18);
-    --ft-surface: rgba(255, 255, 255, 0.76);
-    --ft-surface-strong: rgba(255, 255, 255, 0.92);
-    --ft-topbar-start: #3f6bc7;
-    --ft-topbar-end: #8f4ca8;
-    --ft-card-bg: rgba(255, 255, 255, 0.76);
-    --ft-card-border: rgba(38, 60, 88, 0.15);
-    --ft-text-primary: #0f1f31;
-    --ft-text-secondary: rgba(15, 31, 49, 0.74);
-    --ft-input-bg: rgba(255, 255, 255, 0.92);
-    --ft-input-border: rgba(50, 74, 105, 0.24);
-    --ft-input-focus: rgba(37, 99, 235, 0.58);
-    --ft-button-soft-bg: rgba(26, 46, 78, 0.09);
-    --ft-button-soft-hover: rgba(26, 46, 78, 0.16);
-    --ft-button-primary-text: #f3f8ff;
-    --ft-message-own: linear-gradient(160deg, #8be2ff 0%, #66c8ff 52%, #4f9dff 100%);
-    --ft-message-own-text: #072643;
-    --ft-message-peer: rgba(255, 255, 255, 0.96);
-    --ft-message-peer-text: #12324f;
-    --ft-chat-base: #edf4ff;
-    --ft-glow-accent: radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.22) 0%, transparent 42%),
-      radial-gradient(circle at 84% 12%, rgba(168, 85, 247, 0.16) 0%, transparent 46%),
-      radial-gradient(circle at 48% 90%, rgba(14, 165, 233, 0.14) 0%, transparent 44%);
-  }
-
-  [data-theme-accent="gold"] {
-    --ft-topbar-start: #6a4511;
-    --ft-topbar-end: #915d0f;
-    --ft-button-primary-text: #221503;
-    --ft-message-own: linear-gradient(155deg, #fcd86f 0%, #f7b844 55%, #ef9a0f 100%);
-    --ft-message-own-text: #2f1d02;
-    --ft-glow-accent: radial-gradient(circle at 12% 14%, rgba(250, 204, 21, 0.22) 0%, transparent 42%),
-      radial-gradient(circle at 86% 16%, rgba(234, 179, 8, 0.18) 0%, transparent 46%),
-      radial-gradient(circle at 50% 90%, rgba(251, 191, 36, 0.16) 0%, transparent 44%);
-  }
-
-  [data-theme="light"][data-theme-accent="gold"] {
-    --ft-topbar-start: #c4831d;
-    --ft-topbar-end: #d3a236;
-    --ft-button-primary-text: #1f1403;
-    --ft-message-own: linear-gradient(160deg, #ffd978 0%, #ffbf5f 54%, #f09e1f 100%);
-    --ft-message-own-text: #3f2604;
-  }
-
-  [data-theme-accent="corporate"] {
-    --ft-topbar-start: #1d4ed8;
-    --ft-topbar-end: #0f3a8a;
-    --ft-button-primary-text: #f7fbff;
-    --ft-message-own: linear-gradient(160deg, #93c5fd 0%, #60a5fa 55%, #3b82f6 100%);
-    --ft-message-own-text: #08284f;
-    --ft-glow-accent: radial-gradient(circle at 12% 14%, rgba(59, 130, 246, 0.2) 0%, transparent 42%),
-      radial-gradient(circle at 86% 16%, rgba(56, 189, 248, 0.17) 0%, transparent 46%),
-      radial-gradient(circle at 50% 90%, rgba(14, 116, 144, 0.15) 0%, transparent 44%);
-  }
-
-  [data-theme="light"][data-theme-accent="corporate"] {
-    --ft-topbar-start: #3770dc;
-    --ft-topbar-end: #2260c7;
-    --ft-button-primary-text: #f5f9ff;
-    --ft-message-own: linear-gradient(160deg, #b4daff 0%, #86bfff 55%, #569eff 100%);
-    --ft-message-own-text: #0d2f5f;
+    --ft-bg-start: #f5efe3;
+    --ft-bg-mid: #fff9ef;
+    --ft-bg-end: #ecdfca;
+    --ft-shell-bg: rgba(255, 250, 242, 0.86);
+    --ft-shell-border: rgba(106, 81, 51, 0.2);
+    --ft-surface: rgba(255, 252, 246, 0.82);
+    --ft-surface-strong: rgba(255, 253, 248, 0.96);
+    --ft-topbar-start: #6e5333;
+    --ft-topbar-end: #3d2d1a;
+    --ft-card-bg: rgba(255, 251, 245, 0.85);
+    --ft-card-border: rgba(106, 81, 51, 0.16);
+    --ft-text-primary: #251a10;
+    --ft-text-secondary: rgba(37, 26, 16, 0.72);
+    --ft-input-bg: rgba(255, 255, 255, 0.9);
+    --ft-input-border: rgba(106, 81, 51, 0.24);
+    --ft-input-focus: rgba(193, 129, 48, 0.45);
+    --ft-button-soft-bg: rgba(66, 48, 28, 0.09);
+    --ft-button-soft-hover: rgba(66, 48, 28, 0.17);
+    --ft-button-primary-text: #2a1b0c;
+    --ft-message-own: linear-gradient(160deg, #f6e1bc 0%, #eecb94 54%, #e2b674 100%);
+    --ft-message-own-text: #2f200e;
+    --ft-message-peer: rgba(255, 255, 255, 0.97);
+    --ft-message-peer-text: #312314;
+    --ft-chat-base: #f8f1e5;
+    --ft-active-row: linear-gradient(130deg, rgba(235, 193, 136, 0.34), rgba(197, 153, 95, 0.24));
+    --ft-active-row-border: rgba(165, 117, 58, 0.34);
+    --ft-glow-accent: radial-gradient(circle at 10% 10%, rgba(224, 170, 103, 0.24) 0%, transparent 42%),
+      radial-gradient(circle at 85% 16%, rgba(163, 121, 68, 0.16) 0%, transparent 46%),
+      radial-gradient(circle at 52% 90%, rgba(255, 238, 211, 0.2) 0%, transparent 46%);
   }
 
   * {
@@ -202,26 +168,16 @@
   }
 
   .ft-btn-primary {
-    background: linear-gradient(125deg, #35e3a7, #65a3ff 58%, #9f6bff);
+    background: linear-gradient(125deg, #f6dfb7, #ebc98e 58%, #d7a35f);
     border: 1px solid rgba(255, 255, 255, 0.28);
     color: var(--ft-button-primary-text);
-    box-shadow: 0 14px 28px -16px rgba(25, 130, 255, 0.7);
+    box-shadow: 0 14px 28px -16px rgba(190, 128, 54, 0.68);
   }
 
   .ft-btn-primary:hover {
     filter: saturate(1.1) brightness(1.04);
     transform: translateY(-1px);
-    box-shadow: 0 16px 28px -16px rgba(16, 185, 129, 0.65);
-  }
-
-  [data-theme-accent="gold"] .ft-btn-primary {
-    background: linear-gradient(125deg, #fdd664, #f9bf45 58%, #f59e0b);
-    box-shadow: 0 14px 28px -16px rgba(217, 119, 6, 0.72);
-  }
-
-  [data-theme-accent="corporate"] .ft-btn-primary {
-    background: linear-gradient(125deg, #3b82f6, #2563eb 58%, #0ea5e9);
-    box-shadow: 0 14px 28px -16px rgba(30, 64, 175, 0.68);
+    box-shadow: 0 16px 28px -16px rgba(166, 105, 41, 0.66);
   }
 
   .ft-contact-row {
@@ -235,17 +191,9 @@
   }
 
   .ft-contact-row-active {
-    background: linear-gradient(130deg, rgba(60, 184, 255, 0.2), rgba(155, 81, 224, 0.24));
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: var(--ft-active-row);
+    border: 1px solid var(--ft-active-row-border);
     color: var(--ft-text-primary);
-  }
-
-  [data-theme-accent="gold"] .ft-contact-row-active {
-    background: linear-gradient(130deg, rgba(245, 158, 11, 0.24), rgba(252, 211, 77, 0.2));
-  }
-
-  [data-theme-accent="corporate"] .ft-contact-row-active {
-    background: linear-gradient(130deg, rgba(59, 130, 246, 0.26), rgba(14, 165, 233, 0.2));
   }
 
   .ft-divider {
@@ -283,29 +231,6 @@
     background: var(--ft-surface-strong);
     border-top: 1px solid var(--ft-shell-border);
     backdrop-filter: blur(18px);
-  }
-
-  .ft-variant-chip {
-    border-radius: 9999px;
-    border: 1px solid var(--ft-card-border);
-    background: var(--ft-button-soft-bg);
-    color: var(--ft-text-secondary);
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 0.32rem 0.7rem;
-    transition: all 0.2s ease;
-  }
-
-  .ft-variant-chip:hover {
-    background: var(--ft-button-soft-hover);
-    color: var(--ft-text-primary);
-  }
-
-  .ft-variant-chip-active {
-    color: var(--ft-text-primary);
-    border-color: rgba(255, 255, 255, 0.35);
-    box-shadow: 0 8px 20px -14px rgba(59, 130, 246, 0.75);
   }
 
   .ft-message-bubble {

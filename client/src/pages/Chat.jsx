@@ -221,8 +221,6 @@ function Chat({
   onLogout,
   themeMode,
   onThemeToggle,
-  themeVariant,
-  onThemeVariantChange,
 }) {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
@@ -980,8 +978,6 @@ function Chat({
           onLogout={onLogout}
           themeMode={themeMode}
           onThemeToggle={onThemeToggle}
-          themeVariant={themeVariant}
-          onThemeVariantChange={onThemeVariantChange}
         />
 
         <div className="flex min-h-0 flex-1">
